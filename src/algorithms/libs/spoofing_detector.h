@@ -157,20 +157,25 @@ public:
     void update_clock_info(uint64_t sample_counter, uint32_t tow, uint32_t wn);
     void update_eph_info();
 
+    uint32_t PRN;
+    uint32_t channel_id;
+
+    Gnss_Synchro d_gnss_synchro;
+
 private:
     bool d_first_record;
     bool d_check_TOW;
     bool d_check_RX_clock;
 
-    Clock old_clock;
-    Clock new_clock;
-    Clock lkg_clock;
+    Clock d_old_clock;
+    Clock d_new_clock;
+    Clock d_lkg_clock;
 
     void check_TOW_jump();
+    void check_clock_jump();
 
     void set_old_clock();
-    void set_new_clock();
-    void set_lkg_clock();
+    void set_lkg_clock(bool set_old);
 };
 #endif
 /*
