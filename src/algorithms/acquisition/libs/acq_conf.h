@@ -73,6 +73,8 @@ public:
     bool use_automatic_resampler;
     bool enable_monitor_output;
 
+    bool enable_apt;
+
 private:
     void SetDerivedParams();
 

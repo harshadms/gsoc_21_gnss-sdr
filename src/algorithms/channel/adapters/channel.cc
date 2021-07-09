@@ -226,13 +226,13 @@ void Channel::set_signal(const Gnss_Signal& gnss_signal)
 }
 
 
-void Channel::set_APT_status(bool primary_flag, uint32_t channel_id)
+void Channel::set_APT_status(bool primary_flag, uint32_t channel_id, uint32_t peak_no)
 {
-    DLOG(INFO) << "DEBUG: CHN " << channel_ << " p: " << primary_flag << " pid: " << channel_id;
     gnss_synchro_.Flag_Primary_Channel = primary_flag;
     primary_channel_flag = primary_flag;
     primary_channel_id = channel_id;
-
+    peak_to_track = peak_no;
+    gnss_synchro_.Peak_to_track = peak_to_track;
     if (!primary_flag)
         {
             gnss_synchro_.Primary_Channel_ID = channel_id;

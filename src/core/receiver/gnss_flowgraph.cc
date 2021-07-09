@@ -1636,14 +1636,12 @@ void GNSSFlowgraph::assign_channels()
                     if (channels_.at(i)->is_primary())
                         {
                             channels_.at(i)->set_signal(search_next_signal(gnss_signal, false, is_primary_freq, assistance_available, estimated_doppler, RX_time));
-                            DLOG(INFO) << "DEBUG: " << channels_.at(i)->get_signal().get_satellite().get_PRN();
                         }
                     else
                         {
                             // Assign signal of the associated primary channel
                             uint32_t primary_channel_id = channels_.at(i)->get_primary_channel_id();
                             channels_.at(i)->set_signal(channels_.at(primary_channel_id)->get_signal());
-                            DLOG(INFO) << "DEBUG: CHN " << i << " p: " << channels_.at(i)->is_primary() << " pid: " << channels_.at(i)->get_primary_channel_id() << " PRN: " << channels_.at(primary_channel_id)->get_signal().get_satellite().get_PRN();
                         }
                 }
             else
@@ -2672,14 +2670,17 @@ void GNSSFlowgraph::set_APT_status()
         {
             for (int i = 0; i < channels_count_; i++)
                 {
+                    // Set the peak to track
+                    uint32_t peak_to_track = floor(i / (channels_count_ / channels_per_sv));
+
                     if (i < (channels_count_ / channels_per_sv))
                         {
-                            channels_.at(i)->set_APT_status(true, i);
+                            channels_.at(i)->set_APT_status(true, i, peak_to_track);
                         }
                     else
                         {
                             uint32_t id = i % (channels_count_ / channels_per_sv);
-                            channels_.at(i)->set_APT_status(false, id);
+                            channels_.at(i)->set_APT_status(false, id, peak_to_track);
                         }
                 }
         }

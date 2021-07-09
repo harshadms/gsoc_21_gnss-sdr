@@ -86,7 +86,7 @@ public:
     // Spoofing detector
     bool Acquisition_detection{};  //!< Set by acquisition block
     bool Prompt_corr_detection{};  //!< Set by tracking block
-
+    uint32_t Peak_to_track{};
 
     /// Copy constructor
     Gnss_Synchro(const Gnss_Synchro& other) noexcept
@@ -131,6 +131,7 @@ public:
                 this->Prompt_corr_detection = rhs.Prompt_corr_detection;
                 this->Flag_Primary_Channel = rhs.Flag_Primary_Channel;
                 this->Primary_Channel_ID = rhs.Primary_Channel_ID;
+                this->Peak_to_track = rhs.Peak_to_track;
             }
         return *this;
     };
@@ -177,6 +178,7 @@ public:
                 this->Prompt_corr_detection = other.Prompt_corr_detection;
                 this->Flag_Primary_Channel = other.Flag_Primary_Channel;
                 this->Primary_Channel_ID = other.Primary_Channel_ID;
+                this->Peak_to_track = other.Peak_to_track;
             }
         return *this;
     };
@@ -228,6 +230,7 @@ public:
 
         ar& BOOST_SERIALIZATION_NVP(Flag_Primary_Channel);
         ar& BOOST_SERIALIZATION_NVP(Primary_Channel_ID);
+        ar& BOOST_SERIALIZATION_NVP(Peak_to_track);
     }
 };
 

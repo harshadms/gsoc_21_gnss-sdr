@@ -97,13 +97,14 @@ public:
 
     // APT functions and variables
 
-    void set_APT_status(bool primary_flag, uint32_t primary_channel_id);
+    void set_APT_status(bool primary_flag, uint32_t primary_channel_id, uint32_t peak_no);
 
     inline bool is_primary() override { return primary_channel_flag; }
     inline uint32_t get_primary_channel_id() override { return primary_channel_id; }
 
     bool primary_channel_flag;
     uint32_t primary_channel_id;
+    uint32_t peak_to_track;
 
 private:
     std::shared_ptr<ChannelFsm> channel_fsm_;

@@ -58,7 +58,7 @@ public:
     // APT functions
     virtual bool is_primary() = 0;
     virtual unsigned int get_primary_channel_id() = 0;
-    virtual void set_APT_status(bool primary_flag, uint32_t primary_channel_id) = 0;
+    virtual void set_APT_status(bool primary_flag, uint32_t primary_channel_id, uint32_t peak_no) = 0;
 };
 
 

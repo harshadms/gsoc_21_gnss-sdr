@@ -119,6 +119,7 @@ void Acq_Conf::SetFromConfiguration(const ConfigurationInterface *configuration,
         }
 
     enable_monitor_output = configuration->property("AcquisitionMonitor.enable_monitor", false);
+    enable_apt = configuration->property("SecureACQ.enable_apt", true);
 
     SetDerivedParams();
 }

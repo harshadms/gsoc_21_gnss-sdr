@@ -275,6 +275,7 @@ private:
     uint32_t d_num_doppler_bins_step2;
     uint32_t d_dump_channel;
     uint32_t d_buffer_count;
+    uint32_t d_peak_to_track;
 
     bool d_active;
     bool d_worker_active;
@@ -282,6 +283,7 @@ private:
     bool d_step_two;
     bool d_use_CFAR_algorithm_flag;
     bool d_dump;
+    bool d_enable_apt;
 };
 
 

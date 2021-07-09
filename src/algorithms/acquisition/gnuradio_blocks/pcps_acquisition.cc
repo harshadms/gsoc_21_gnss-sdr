@@ -129,6 +129,9 @@ pcps_acquisition::pcps_acquisition(const Acq_Conf& conf_) : gr::block("pcps_acqu
     d_dump_channel = d_acq_parameters.dump_channel;
     d_dump = d_acq_parameters.dump;
     d_dump_filename = d_acq_parameters.dump_filename;
+
+    d_enable_apt = d_acq_parameters.enable_apt;
+
     if (d_dump)
         {
             std::string dump_path;
@@ -789,7 +792,7 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
             else
                 {
                     d_buffer_count = 0;
-                    d_state = 1; // Negative acquisition
+                    d_state = 1;  // Negative acquisition
                 }
 
             if (d_num_noncoherent_integrations_counter == d_acq_parameters.max_dwells)
@@ -934,6 +937,8 @@ int pcps_acquisition::general_work(int noutput_items __attribute__((unused)),
                 d_mag = 0.0;
                 d_state = 1;
                 d_buffer_count = 0U;
+                d_peak_to_track = d_gnss_synchro->Peak_to_track;
+
                 if (!d_acq_parameters.blocking_on_standby)
                     {
                         d_sample_counter += static_cast<uint64_t>(ninput_items[0]);  // sample counter
