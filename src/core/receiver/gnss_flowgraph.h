@@ -223,6 +223,8 @@ private:
     double project_doppler(const std::string& searched_signal, double primary_freq_doppler_hz);
     bool is_multiband() const;
 
+    void set_APT_status();
+
     std::vector<std::string> split_string(const std::string& s, char delim);
     std::vector<bool> signal_conditioner_connected_;
 
@@ -298,6 +300,9 @@ private:
     bool enable_acquisition_monitor_;
     bool enable_tracking_monitor_;
     bool enable_fpga_offloading_;
+
+    bool enable_apt;
+    int channels_per_sv;
 };
 
 

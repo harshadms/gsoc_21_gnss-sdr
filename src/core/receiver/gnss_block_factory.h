@@ -97,6 +97,8 @@ private:
         const std::string& role,
         unsigned int in_streams,
         unsigned int out_streams);
+
+    unsigned int GetGPSL1Channels(const ConfigurationInterface* configuration);
 };
 
 

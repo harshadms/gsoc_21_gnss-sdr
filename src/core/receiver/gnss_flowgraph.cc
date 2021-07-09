@@ -31,6 +31,7 @@
 #include "channel_fsm.h"
 #include "channel_interface.h"
 #include "configuration_interface.h"
+#include "display.h"
 #include "gnss_block_factory.h"
 #include "gnss_block_interface.h"
 #include "gnss_satellite.h"
@@ -95,6 +96,11 @@ void GNSSFlowgraph::init()
     /*
      * Instantiates the receiver blocks
      */
+
+    // APT params
+    enable_apt = configuration_->property("SecureACQ.enable_apt", true);
+    channels_per_sv = configuration_->property("SecureACQ.channels_per_sv", 2);
+
     auto block_factory = std::make_unique<GNSSBlockFactory>();
 
     channels_status_ = channel_status_msg_receiver_make();
@@ -140,6 +146,7 @@ void GNSSFlowgraph::init()
     auto channels = block_factory->GetChannels(configuration_.get(), queue_.get());
 
     channels_count_ = static_cast<int>(channels->size());
+
     for (int i = 0; i < channels_count_; i++)
         {
             std::shared_ptr<GNSSBlockInterface> chan_ = std::move(channels->at(i));
@@ -163,6 +170,8 @@ void GNSSFlowgraph::init()
     // fill the signals queue with the satellites ID's to be searched by the acquisition
     set_signals_list();
     set_channels_state();
+    set_APT_status();
+
     DLOG(INFO) << "Blocks instantiated. " << channels_count_ << " channels.";
 
     /*
@@ -1622,7 +1631,20 @@ void GNSSFlowgraph::assign_channels()
                     float estimated_doppler;
                     double RX_time;
                     bool is_primary_freq;
-                    channels_.at(i)->set_signal(search_next_signal(gnss_signal, false, is_primary_freq, assistance_available, estimated_doppler, RX_time));
+
+                    // APT - Check if the channel is a primary channel
+                    if (channels_.at(i)->is_primary())
+                        {
+                            channels_.at(i)->set_signal(search_next_signal(gnss_signal, false, is_primary_freq, assistance_available, estimated_doppler, RX_time));
+                            DLOG(INFO) << "DEBUG: " << channels_.at(i)->get_signal().get_satellite().get_PRN();
+                        }
+                    else
+                        {
+                            // Assign signal of the associated primary channel
+                            uint32_t primary_channel_id = channels_.at(i)->get_primary_channel_id();
+                            channels_.at(i)->set_signal(channels_.at(primary_channel_id)->get_signal());
+                            DLOG(INFO) << "DEBUG: CHN " << i << " p: " << channels_.at(i)->is_primary() << " pid: " << channels_.at(i)->get_primary_channel_id() << " PRN: " << channels_.at(primary_channel_id)->get_signal().get_satellite().get_PRN();
+                        }
                 }
             else
                 {
@@ -1919,13 +1941,21 @@ void GNSSFlowgraph::acquisition_manager(unsigned int who)
 
                     if (sat_ == 0)
                         {
-                            gnss_signal = search_next_signal(channels_[current_channel]->get_signal().get_signal_str(),
-                                true,
-                                is_primary_freq,
-                                assistance_available,
-                                estimated_doppler,
-                                RX_time);
-                            channels_[current_channel]->set_signal(gnss_signal);
+                            if (channels_[current_channel]->is_primary())
+                                {
+                                    gnss_signal = search_next_signal(channels_[current_channel]->get_signal().get_signal_str(),
+                                        true,
+                                        is_primary_freq,
+                                        assistance_available,
+                                        estimated_doppler,
+                                        RX_time);
+                                    channels_[current_channel]->set_signal(gnss_signal);
+                                }
+                            else
+                                {
+                                    uint32_t p_channel = channels_[current_channel]->get_primary_channel_id();  // primary channel
+                                    channels_[current_channel]->set_signal(channels_[p_channel]->get_signal());
+                                }
                             start_acquisition = is_primary_freq or assistance_available or !configuration_->property("GNSS-SDR.assist_dual_frequency_acq", multiband_);
                         }
                     else
@@ -2636,6 +2666,26 @@ void GNSSFlowgraph::set_channels_state()
 }
 
 
+void GNSSFlowgraph::set_APT_status()
+{
+    if (enable_apt)
+        {
+            for (int i = 0; i < channels_count_; i++)
+                {
+                    if (i < (channels_count_ / channels_per_sv))
+                        {
+                            channels_.at(i)->set_APT_status(true, i);
+                        }
+                    else
+                        {
+                            uint32_t id = i % (channels_count_ / channels_per_sv);
+                            channels_.at(i)->set_APT_status(false, id);
+                        }
+                }
+        }
+}
+
+
 bool GNSSFlowgraph::is_multiband() const
 {
     bool multiband = false;
@@ -2698,6 +2748,7 @@ Gnss_Signal GNSSFlowgraph::search_next_signal(const std::string& searched_signal
         {
         case evGPS_1C:
             // todo: assist the satellite selection with almanac and current PVT here (rehuse priorize_satellite function used in control_thread)
+
             result = available_GPS_1C_signals_.front();
             available_GPS_1C_signals_.pop_front();
             if (!pop)

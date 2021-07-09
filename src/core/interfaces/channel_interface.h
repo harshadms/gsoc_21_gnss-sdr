@@ -54,6 +54,11 @@ public:
     virtual void assist_acquisition_doppler(double Carrier_Doppler_hz) = 0;
     virtual void stop_channel() = 0;
     virtual void set_signal(const Gnss_Signal&) = 0;
+
+    // APT functions
+    virtual bool is_primary() = 0;
+    virtual unsigned int get_primary_channel_id() = 0;
+    virtual void set_APT_status(bool primary_flag, uint32_t primary_channel_id) = 0;
 };
 
 
