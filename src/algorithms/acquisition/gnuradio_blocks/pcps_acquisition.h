@@ -288,6 +288,7 @@ private:
     bool d_dump;
     bool d_acquire_aux_peaks;
     bool d_dump_all;
+    bool d_aux_peak_found;
 };
 
 

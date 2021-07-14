@@ -640,8 +640,8 @@ void pcps_acquisition::acquire_aux_peak(uint32_t num_doppler_bins, int32_t doppl
                             for (int k = 0; k < effective_fft_size; k++)
                                 {
                                     temp_code_phase = static_cast<double>(std::fmod(static_cast<float>(k), d_acq_parameters.samples_per_code));
-                                    if (temp_code_phase < (d_gnss_synchro->Acq_delay_samples + d_peak_sep_min) &&
-                                        temp_code_phase > (d_gnss_synchro->Acq_delay_samples - d_peak_sep_min))
+                                    if (temp_code_phase <= (d_gnss_synchro->Acq_delay_samples + d_peak_sep_min) &&
+                                        temp_code_phase >= (d_gnss_synchro->Acq_delay_samples - d_peak_sep_min))
                                         {
                                             continue;
                                         }
@@ -678,6 +678,8 @@ void pcps_acquisition::acquire_aux_peak(uint32_t num_doppler_bins, int32_t doppl
                     d_test_statistics = rit->first / d_input_power;
                     d_gnss_synchro->Acq_delay_samples = rit->second.code_phase;
                     d_gnss_synchro->Acq_doppler_hz = rit->second.doppler;
+
+                    d_aux_peak_found = true;
                     break;
                 }
             ++i;
@@ -768,8 +770,9 @@ void pcps_acquisition::acquire_aux_peak(uint32_t num_doppler_bins, int32_t doppl
 
 void pcps_acquisition::acquisition_core(uint64_t samp_count)
 {
-    gr::thread::scoped_lock lk(d_setlock);
+    d_aux_peak_found = false;
 
+    gr::thread::scoped_lock lk(d_setlock);
     // Initialize acquisition algorithm
     int32_t doppler = 0;
     uint32_t indext = 0U;
@@ -949,7 +952,7 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
             //         d_test_statistics = 0;
             //     }
 
-            if (d_test_statistics > d_threshold)
+            if (d_test_statistics > d_threshold && (d_peak_to_track == 0 || d_aux_peak_found))
                 {
                     d_active = false;
                     if (d_acq_parameters.make_2_steps)
@@ -1000,7 +1003,7 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
     else
         {
             d_active = false;
-            if (d_test_statistics > d_threshold)
+            if (d_test_statistics > d_threshold && (d_peak_to_track == 0 || d_aux_peak_found))
                 {
                     if (d_acq_parameters.make_2_steps)
                         {
@@ -1130,8 +1133,8 @@ int pcps_acquisition::general_work(int noutput_items __attribute__((unused)),
                         d_sample_counter += static_cast<uint64_t>(ninput_items[0]);  // sample counter
                         consume_each(ninput_items[0]);
                     }
-                break;
                 d_gnss_synchro->Acquisition_detection = false;
+                break;
             }
         case 1:
             {
