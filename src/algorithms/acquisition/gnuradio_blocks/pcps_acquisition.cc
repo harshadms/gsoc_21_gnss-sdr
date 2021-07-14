@@ -640,11 +640,16 @@ void pcps_acquisition::acquire_aux_peak(uint32_t num_doppler_bins, int32_t doppl
                             for (int k = 0; k < effective_fft_size; k++)
                                 {
                                     temp_code_phase = static_cast<double>(std::fmod(static_cast<float>(k), d_acq_parameters.samples_per_code));
-                                    if (temp_code_phase < (d_gnss_synchro->Acq_delay_samples + d_peak_sep_min) && temp_code_phase > (d_gnss_synchro->Acq_delay_samples - d_peak_sep_min))
+                                    if (temp_code_phase < (d_gnss_synchro->Acq_delay_samples + d_peak_sep_min) &&
+                                        temp_code_phase > (d_gnss_synchro->Acq_delay_samples - d_peak_sep_min))
                                         {
                                             continue;
                                         }
 
+                                    if (d_threshold > d_magnitude_grid[i][k] / d_input_power)
+                                        {
+                                            continue;
+                                        }
                                     Peak peak;
                                     peak.mag = d_magnitude_grid[i][k];
                                     peak.doppler = -static_cast<int32_t>(doppler_max) + d_doppler_center + doppler_step * static_cast<int32_t>(i);
