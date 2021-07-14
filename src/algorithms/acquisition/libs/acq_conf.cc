@@ -53,6 +53,8 @@ Acq_Conf::Acq_Conf()
     resampled_fs = 0LL;
     resampler_latency_samples = 0U;
     enable_monitor_output = false;
+    dump_sv = 0;
+    peak_separation = 0;
 }
 
 
@@ -75,6 +77,7 @@ void Acq_Conf::SetFromConfiguration(const ConfigurationInterface *configuration,
     max_dwells = configuration->property(role + ".max_dwells", max_dwells);
     dump = configuration->property(role + ".dump", dump);
     dump_channel = configuration->property(role + ".dump_channel", dump_channel);
+    dump_sv = configuration->property(role + ".dump_sv", dump_sv);
     blocking = configuration->property(role + ".blocking", blocking);
     dump_filename = configuration->property(role + ".dump_filename", dump_filename);
 
@@ -120,7 +123,8 @@ void Acq_Conf::SetFromConfiguration(const ConfigurationInterface *configuration,
 
     enable_monitor_output = configuration->property("AcquisitionMonitor.enable_monitor", false);
     enable_apt = configuration->property("SecureACQ.enable_apt", true);
-
+    peak_separation = configuration->property("SecureACQ.peak_separation", 500);
+    dump_all = configuration->property(role + ".dump_all", false);
     SetDerivedParams();
 }
 

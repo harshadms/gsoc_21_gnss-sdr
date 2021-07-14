@@ -230,6 +230,7 @@ private:
     void calculate_threshold(void);
     float first_vs_second_peak_statistic(uint32_t& indext, int32_t& doppler, uint32_t num_doppler_bins, int32_t doppler_max, int32_t doppler_step);
     float max_to_input_power_statistic(uint32_t& indext, int32_t& doppler, uint32_t num_doppler_bins, int32_t doppler_max, int32_t doppler_step);
+    void acquire_aux_peak(uint32_t num_doppler_bins, int32_t doppler_max, int32_t doppler_step);
 
     volk_gnsssdr::vector<volk_gnsssdr::vector<float>> d_magnitude_grid;
     volk_gnsssdr::vector<float> d_tmp_buffer;
@@ -274,8 +275,10 @@ private:
     uint32_t d_num_doppler_bins;
     uint32_t d_num_doppler_bins_step2;
     uint32_t d_dump_channel;
+    uint32_t d_dump_sv;
     uint32_t d_buffer_count;
     uint32_t d_peak_to_track;
+    double d_peak_sep_min;  // Minimum peak separation for a peak to be categorized as an adversarial auxiliary peak
 
     bool d_active;
     bool d_worker_active;
@@ -283,7 +286,8 @@ private:
     bool d_step_two;
     bool d_use_CFAR_algorithm_flag;
     bool d_dump;
-    bool d_enable_apt;
+    bool d_acquire_aux_peaks;
+    bool d_dump_all;
 };
 
 
