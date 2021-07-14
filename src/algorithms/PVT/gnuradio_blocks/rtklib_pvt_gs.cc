@@ -145,6 +145,7 @@ rtklib_pvt_gs::rtklib_pvt_gs(uint32_t nchannels,
         {
             d_spoofing_detector = PVTConsistencyChecks(&conf_.security_parameters);
             d_print_score = conf_.print_score;
+            d_use_aux_peak = conf_.security_parameters.use_aux_peak;
         }
 
     std::string dump_ls_pvt_filename = conf_.dump_filename;
@@ -1845,6 +1846,22 @@ int rtklib_pvt_gs::work(int noutput_items, gr_vector_const_void_star& input_item
             // ############ 1. READ PSEUDORANGES ####
             for (uint32_t i = 0; i < d_nchannels; i++)
                 {
+                    // Ignore aux channels if "use_aux_peak" is set to false. In this case only the primary channel will be used to compute PVT.
+                    if (d_use_aux_peak)
+                        {
+                            if (in[i][epoch].Peak_to_track == 0)
+                                {
+                                    continue;
+                                }
+                        }
+                    else
+                        {
+                            if (in[i][epoch].Peak_to_track != 0)
+                                {
+                                    continue;
+                                }
+                        }
+
                     if (in[i][epoch].Flag_valid_pseudorange)
                         {
                             const auto tmp_eph_iter_gps = d_internal_pvt_solver->gps_ephemeris_map.find(in[i][epoch].PRN);

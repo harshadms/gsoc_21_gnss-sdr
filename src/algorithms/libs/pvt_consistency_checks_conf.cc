@@ -35,6 +35,7 @@ PVTConsistencyChecksConf::PVTConsistencyChecksConf()
     position_check = false;
     dump_pvt_checks_results = false;
     static_pos_check = false;
+    use_aux_peak = false;
 
     std::string filename = "./pos_consistency_results.mat";
 }

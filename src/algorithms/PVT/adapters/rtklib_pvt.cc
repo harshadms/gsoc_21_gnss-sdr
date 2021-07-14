@@ -836,7 +836,7 @@ Rtklib_Pvt::Rtklib_Pvt(const ConfigurationInterface* configuration,
             spoofing_detection_parameters.velocity_difference = configuration->property("SecurePVT.velocity_difference", 15);
             spoofing_detection_parameters.pos_error_threshold = configuration->property("SecurePVT.pos_error_threshold", 10);
             spoofing_detection_parameters.static_pos_check = configuration->property("SecurePVT.static_pos_check", false);
-
+            spoofing_detection_parameters.use_aux_peak = configuration->property("SecurePVT.use_aux_peak", false);
             spoofing_detection_parameters.min_altitude = configuration->property("SecurePVT.min_altitude", -10);
             spoofing_detection_parameters.max_altitude = configuration->property("SecurePVT.max_altitude", 20000);
             spoofing_detection_parameters.min_ground_speed = configuration->property("SecurePVT.min_ground_speed", 0);
