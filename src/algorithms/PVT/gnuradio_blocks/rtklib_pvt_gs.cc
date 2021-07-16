@@ -1846,6 +1846,20 @@ int rtklib_pvt_gs::work(int noutput_items, gr_vector_const_void_star& input_item
             // ############ 1. READ PSEUDORANGES ####
             for (uint32_t i = 0; i < d_nchannels; i++)
                 {
+                    if (!in[i][epoch].Flag_Primary_Channel)
+                        {
+                            int p_channel = in[i][epoch].Primary_Channel_ID;
+                            uint32_t count_1 = in[i][epoch].Tracking_sample_counter;
+                            uint32_t count_2 = in[p_channel][epoch].Tracking_sample_counter;
+                            int diff = count_1 - count_2;
+
+                            if (diff != 0 && in[i][epoch].PRN > 0)
+                                {
+                                    DLOG(INFO) << " APT: ================================= Auxiliary peak detected =================================";
+                                    DLOG(INFO) << " APT:  PRN: " << in[i][epoch].PRN;
+                                    DLOG(INFO) << " APT:  Separation: " << abs(diff) * 1e9 / in[i][epoch].fs;
+                                }
+                        }
                     // Ignore aux channels if "use_aux_peak" is set to false. In this case only the primary channel will be used to compute PVT.
                     if (d_use_aux_peak)
                         {
