@@ -138,6 +138,7 @@ pcps_acquisition::pcps_acquisition(const Acq_Conf& conf_) : gr::block("pcps_acqu
     d_dump = d_acq_parameters.dump;
     d_dump_all = d_acq_parameters.dump_all;
     d_dump_filename = d_acq_parameters.dump_filename;
+    d_dump_on_positive_acq = d_acq_parameters.dump_on_positive_acq;
 
     d_acquire_aux_peaks = d_acq_parameters.enable_apt;
     d_peak_sep_min = d_acq_parameters.peak_separation * 1e-9 * d_acq_parameters.fs_in;
@@ -684,87 +685,6 @@ void pcps_acquisition::acquire_aux_peak(uint32_t num_doppler_bins, int32_t doppl
                 }
             ++i;
         }
-
-    // for (uint32_t doppler_index = 0; doppler_index < d_num_doppler_bins_step; doppler_index++)
-    //     {
-    //         //Find the local maxima for the peaks for each doppler bin
-    //         p1d::Persistence1D p;
-    //         std::vector<float> dp;
-    //         if (*std::max_element(peaks.begin(), peaks.end()) >= d_threshold)
-    //             {
-    //                 p.RunPersistence(peaks);
-    //                 std::vector<p1d::TPairedExtrema> Extrema;
-    //                 p.GetPairedExtrema(Extrema, 0);
-
-    //                 for (std::vector<p1d::TPairedExtrema>::iterator it = Extrema.begin(); it != Extrema.end(); it++)
-    //                     {
-    //                         if (peaks.at((*it).MaxIndex) >= d_threshold)
-    //                             {
-    //                                 Peak peak;
-    //                                 peak.mag = peaks.at((*it).MaxIndex);  // (fft_normalization_factor * fft_normalization_factor);
-    //                                 peak.doppler = (double)doppler;
-    //                                 peak.code_phase = std::fmod((*it).MaxIndex, d_acq_parameters.samples_per_code);
-    //                                 d_highest_peaks[peak.mag] = peak;
-
-    //                                 if (d_gnss_synchro->PRN == d_dump_sv)
-    //                                     {
-    //                                         DLOG(INFO) << "APT: " << peak.mag << ", " << peak.code_phase << ", " << peak.doppler;
-    //                                     }
-    //                             }
-    //                     }
-    //             }
-    //         peaks.clear();
-    //     }
-
-    // std::map<float, Peak>::reverse_iterator rit;
-    // std::map<float, Peak>::reverse_iterator rit2;
-    // std::map<float, Peak> d_highest_peaks_reduced;
-
-    // DLOG(INFO) << "### all peaks: ###" << d_highest_peaks.size();
-    // for (rit = d_highest_peaks.rbegin(); rit != d_highest_peaks.rend(); ++rit)
-    //     {
-    //         use_peak = true;
-    //         DLOG(INFO) << rit->second.code_phase << " " << rit->second.doppler << " " << rit->second.mag;
-    //         for (rit2 = d_highest_peaks_reduced.rbegin(); rit2 != d_highest_peaks_reduced.rend(); ++rit2)
-    //             {
-    //                 if (abs(rit->second.code_phase - rit2->second.code_phase) <= 1 &&
-    //                     abs(rit->second.doppler - rit2->second.doppler) <= d_doppler_step)
-    //                     {
-    //                         use_peak = false;
-    //                     }
-    //             }
-
-    //         if (use_peak)
-    //             {
-    //                 d_highest_peaks_reduced[rit->first] = rit->second;
-    //                 DLOG(INFO) << "APT: Peak - " << rit->first << ", " << rit->second.code_phase << ", " << rit->second.doppler;
-    //             }
-    //     }
-
-    // //If there is more than one peak present, acquire the highest
-    // if (d_highest_peaks_reduced.size() >= d_peak_to_track)
-    //     {
-    //         std::map<float, Peak>::reverse_iterator rit;
-
-    //         unsigned int i = 1;
-    //         DLOG(INFO) << "### peaks: ###";
-    //         for (rit = d_highest_peaks_reduced.rbegin(); rit != d_highest_peaks_reduced.rend(); ++rit)
-    //             {
-    //                 if (i == d_peak_to_track)
-    //                     {
-    //                         found_peak = true;
-    //                         DLOG(INFO) << "!!! peak found !!!";
-    //                         DLOG(INFO) << "peak " << rit->first;
-    //                         DLOG(INFO) << "d_peak_to_track " << d_peak_to_track;
-    //                         DLOG(INFO) << "code phase " << rit->second.code_phase;
-    //                         d_test_statistics = rit->first / d_input_power;
-    //                         d_gnss_synchro->Acq_delay_samples = rit->second.code_phase;
-    //                         d_gnss_synchro->Acq_doppler_hz = rit->second.doppler;
-    //                     }
-
-    //                 ++i;
-    //             }
-    //     }
 }
 
 
@@ -866,6 +786,11 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
                     d_gnss_synchro->Acq_doppler_hz = static_cast<double>(doppler);
                     d_gnss_synchro->Acq_samplestamp_samples = samp_count;
                 }
+
+            if (d_peak_to_track > 0)
+                {
+                    acquire_aux_peak(d_num_doppler_bins, d_acq_parameters.doppler_max, d_doppler_step);
+                }
         }
     else
         {
@@ -933,12 +858,13 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
                     d_gnss_synchro->Acq_samplestamp_samples = samp_count;
                     d_gnss_synchro->Acq_doppler_step = d_acq_parameters.doppler_step2;
                 }
+
+            if (d_peak_to_track > 0)
+                {
+                    acquire_aux_peak(d_num_doppler_bins_step2, static_cast<int32_t>(d_doppler_center_step_two - (static_cast<float>(d_num_doppler_bins_step2) / 2.0) * d_acq_parameters.doppler_step2), d_acq_parameters.doppler_step2);
+                }
         }
 
-    if (d_peak_to_track > 0)
-        {
-            acquire_aux_peak(d_num_doppler_bins, d_acq_parameters.doppler_max, d_doppler_step);
-        }
 
     if (d_acq_parameters.blocking)
         {
@@ -1046,7 +972,18 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
             // Record results to file if required
             if (d_dump and (d_dump_sv == d_gnss_synchro->PRN or d_dump_all))
                 {
-                    pcps_acquisition::dump_results(effective_fft_size);
+                    // Dump only if positive acq - REMOVE after debugging
+                    if (d_dump_on_positive_acq)
+                        {
+                            if (d_positive_acq)
+                                {
+                                    pcps_acquisition::dump_results(effective_fft_size);
+                                }
+                        }
+                    else
+                        {
+                            pcps_acquisition::dump_results(effective_fft_size);
+                        }
                 }
         }
     d_num_noncoherent_integrations_counter = 0U;

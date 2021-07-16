@@ -125,6 +125,8 @@ void Acq_Conf::SetFromConfiguration(const ConfigurationInterface *configuration,
     enable_apt = configuration->property("SecureACQ.enable_apt", true);
     peak_separation = configuration->property("SecureACQ.peak_separation", 500);
     dump_all = configuration->property(role + ".dump_all", false);
+    dump_on_positive_acq = configuration->property(role + ".dump_on_positive_acq", false);
+
     SetDerivedParams();
 }
 

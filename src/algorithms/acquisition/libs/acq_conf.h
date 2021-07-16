@@ -76,7 +76,7 @@ public:
     bool make_2_steps;
     bool use_automatic_resampler;
     bool enable_monitor_output;
-
+    bool dump_on_positive_acq;
     bool enable_apt;
 
 private:
