@@ -2307,9 +2307,12 @@ int rtklib_pvt_gs::work(int noutput_items, gr_vector_const_void_star& input_item
                                 {
                                     set_warning_color(COLOR, score);
 
-                                    std::cout
-                                        << COLOR
-                                        << "Spoofer score: " << score << TEXT_RESET << "\n";
+                                    if (score > 0)
+                                        {
+                                            std::cout
+                                                << COLOR
+                                                << "Spoofer score: " << score << TEXT_RESET << "\n";
+                                        }
 
                                     uint32_t count = 0;
 
