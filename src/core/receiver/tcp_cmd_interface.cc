@@ -19,11 +19,12 @@
 #include "command_event.h"
 #include "pvt_interface.h"
 #include <boost/asio.hpp>
-#include <cmath>      // for isnan
-#include <exception>  // for exception
-#include <iomanip>    // for setprecision
-#include <sstream>    // for stringstream
-#include <utility>    // for move
+#include <glog/logging.h>  // for LOG
+#include <cmath>           // for isnan
+#include <exception>       // for exception
+#include <iomanip>         // for setprecision
+#include <sstream>         // for stringstream
+#include <utility>         // for move
 
 #if USE_BOOST_ASIO_IO_CONTEXT
 using b_io_context = boost::asio::io_context;
@@ -52,6 +53,7 @@ void TcpCmdInterface::register_functions()
     functions_["hotstart"] = [&](auto &s) { return TcpCmdInterface::hotstart(s); };
     functions_["warmstart"] = [&](auto &s) { return TcpCmdInterface::warmstart(s); };
     functions_["coldstart"] = [&](auto &s) { return TcpCmdInterface::coldstart(s); };
+    functions_["switch_peaks"] = std::bind(&TcpCmdInterface::switch_peaks, this, std::placeholders::_1);
     functions_["set_ch_satellite"] = [&](auto &s) { return TcpCmdInterface::set_ch_satellite(s); };
 #else
     functions_["status"] = std::bind(&TcpCmdInterface::status, this, std::placeholders::_1);
@@ -60,6 +62,7 @@ void TcpCmdInterface::register_functions()
     functions_["hotstart"] = std::bind(&TcpCmdInterface::hotstart, this, std::placeholders::_1);
     functions_["warmstart"] = std::bind(&TcpCmdInterface::warmstart, this, std::placeholders::_1);
     functions_["coldstart"] = std::bind(&TcpCmdInterface::coldstart, this, std::placeholders::_1);
+    functions_["switch_peaks"] = std::bind(&TcpCmdInterface::switch_peaks, this, std::placeholders::_1);
     functions_["set_ch_satellite"] = std::bind(&TcpCmdInterface::set_ch_satellite, this, std::placeholders::_1);
 #endif
 }
@@ -295,6 +298,34 @@ std::string TcpCmdInterface::set_ch_satellite(const std::vector<std::string> &co
     return response;
 }
 
+
+std::string TcpCmdInterface::switch_peaks(const std::vector<std::string> &commandLine __attribute__((unused)))
+{
+    std::string response;
+    int pvt_response = PVT_sptr_->switch_peaks();
+
+    DLOG(INFO) << "SWITCH: Resp: " << pvt_response;
+    switch (pvt_response)
+        {
+        case 0:
+            {
+                response = "Using the primary peaks for calculating the PVT solution\n";
+                break;
+            }
+        case 1:
+            {
+                response = "Using the auxiliary peaks for calculating the PVT solution\n";
+                break;
+            }
+        case 2:
+            {
+                response = "Please run GNSS-SDR with APT to switch peaks\n";
+                break;
+            }
+        }
+
+    return response;
+}
 
 void TcpCmdInterface::set_msg_queue(std::shared_ptr<Concurrent_Queue<pmt::pmt_t>> control_queue)
 {

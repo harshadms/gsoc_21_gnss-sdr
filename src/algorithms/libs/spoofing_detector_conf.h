@@ -30,6 +30,7 @@ public:
     bool static_pos_check;
     bool dump_pvt_checks_results;
     bool use_aux_peak;
+    bool enable_apt;
 
     int max_jump_distance;
     int geo_fence_radius;

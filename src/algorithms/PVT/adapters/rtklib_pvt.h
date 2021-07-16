@@ -67,6 +67,8 @@ public:
     }
 
     void clear_ephemeris() override;
+    int switch_peaks() override;
+
     std::map<int, Gps_Ephemeris> get_gps_ephemeris() const override;
     std::map<int, Galileo_Ephemeris> get_galileo_ephemeris() const override;
     std::map<int, Gps_Almanac> get_gps_almanac() const override;
