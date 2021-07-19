@@ -117,9 +117,9 @@ private:
     PvtSol d_lkg_pvt;     // Last known good PVT sol
     PvtSol d_static_pvt;  // Static surveyed coordinates to compare received coordinates with
 
-    void position_jump();     // Jump check, recheck with a known good location - increase score if close to known location.
-    void compare_velocity();  // velocity consistency.
-    void static_pos_check();  // Static position check with a known pre-determined location
+    bool check_position_jump();                                                                   // Jump check, recheck with a known good location - increase score if close to known location.
+    void check_velocity_consistency();                                                            // velocity consistency.
+    bool validate_location_proximity(const PvtSol* pvtsol1, const PvtSol* pvtsol2, int test_id);  // Static position check with a known pre-determined location
     bool check_propagated_pos();
     void abnormal_position_checks();  // Check for abnormal positions
 
@@ -130,7 +130,6 @@ private:
     void update_lkg_pvt(bool set_old);
     void reset_pos_jump_check();
 
-    long double calculate_distance(double lat1, double lon1, double lat2, double lon2);
     long double calculate_distance_ECEF(const PvtSol* sol1, const PvtSol* sol2);
 
     long double to_radians(double degree);

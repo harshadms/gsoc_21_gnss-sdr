@@ -66,18 +66,39 @@ void PVTConsistencyChecks::check_PVT_consistency()
     // PVT block calls this function. Actual consistency checks are triggered from here
     if (d_static_pos_check)
         {
-            static_pos_check();
+            if (validate_location_proximity(&d_new_pvt, &d_static_pvt, 1))
+                {
+                    if (d_score.static_pos_check_score == 1)
+                        {
+                            DLOG(INFO) << "STATIC_POS: Received location within geo-fence, resetting static position score";
+                        }
+
+                    d_score.static_pos_check_score = 0;
+                }
+            else
+                {
+                    d_score.static_pos_check_score = 1;
+                    d_spoofer_score = d_score.total_score();
+                }
         }
 
-    position_jump();
-    compare_velocity();
+    if (check_position_jump())
+        {
+            d_score.position_jump_score = 2;
+        }
+
+    check_velocity_consistency();
+
     abnormal_position_checks();
+
     check_time();
 
     if (d_first_record)
         {
             d_first_record = false;
         }
+
+    d_spoofer_score = d_score.total_score();
 }
 
 void PVTConsistencyChecks::abnormal_position_checks()
@@ -85,20 +106,20 @@ void PVTConsistencyChecks::abnormal_position_checks()
     // A collection of model based position abnormalities check Min/Max altitude and speed
     d_score.abnormal_position_score = 0;
 
-    if (d_new_pvt.ecef_z < d_min_altitude) d_score.abnormal_position_score += 0.25;
-    if (d_new_pvt.ecef_z > d_max_altitude) d_score.abnormal_position_score += 0.25;
+    //if (d_new_pvt.ecef_z < d_min_altitude) d_score.abnormal_position_score += 0.25;
+    //if (d_new_pvt.ecef_z > d_max_altitude) d_score.abnormal_position_score += 0.25;
     if (d_new_pvt.speed_over_ground < d_min_ground_speed) d_score.abnormal_position_score += 0.25;
     if (d_new_pvt.speed_over_ground > d_max_ground_speed) d_score.abnormal_position_score += 0.25;
 
     DLOG(INFO) << "ABNORMAL_CHECK: " << d_score.abnormal_position_score;
 }
 
-void PVTConsistencyChecks::compare_velocity()
+void PVTConsistencyChecks::check_velocity_consistency()
 {
     /// Compares the reported velocity with the position pairs. If the projected coordinates do not match the received coordinate velocity error is increased
     ++d_checked_velocity_pairs;
 
-    if (check_propagated_pos())
+    if (!check_propagated_pos())
         {
             ++d_velocity_error;
         }
@@ -107,37 +128,36 @@ void PVTConsistencyChecks::compare_velocity()
     update_old_pvt();
 }
 
-void PVTConsistencyChecks::static_pos_check()
+bool PVTConsistencyChecks::validate_location_proximity(const PvtSol* pvtsol1, const PvtSol* pvtsol2, int test_id)
 {
-    long double distance = calculate_distance_ECEF(&d_static_pvt, &d_new_pvt);
-    DLOG(INFO) << "STATIC_POS: static_coords (" << d_static_pvt.ecef_y << "," << d_static_pvt.ecef_x << ") received (" << d_new_pvt.ecef_y << "," << d_new_pvt.ecef_x << ") Distance: " << distance;
-    if (distance > d_geo_fence_radius)
-        {
-            d_score.static_pos_check_score = 1;
-            d_spoofer_score = d_score.total_score();
+    long double distance = calculate_distance_ECEF(pvtsol1, pvtsol2);
 
-            DLOG(INFO) << "STATIC_POS: Spoofer score: " << d_spoofer_score << " - Distance: " << distance;
-        }
-    else
+    switch (test_id)
         {
-            if (d_score.static_pos_check_score == 1)
-                {
-                    DLOG(INFO) << "STATIC_POS: Received location within geo-fence, resetting static position score";
-                }
+        case 1:  // Validate location's proximity to the configured static location
+            {
+                DLOG(INFO) << "STATIC_POS: static_coords (" << pvtsol1->ecef_y << "," << pvtsol1->ecef_x << ") received (" << pvtsol2->ecef_y << "," << pvtsol2->ecef_x << ") Distance: " << distance;
+                return distance < d_geo_fence_radius;
+            }
+        case 2:  // Compare the distance between the old and the new solutions with configured max jump distance
+            {
+                DLOG(INFO) << "POS_JUMP: Old (" << pvtsol1->ecef_y << "," << pvtsol1->ecef_x << ") received ("
+                           << pvtsol2->ecef_y << "," << pvtsol2->ecef_x << ") Distance: "
+                           << distance << " Spoofer score: " << get_spoofer_score();
 
-            d_score.static_pos_check_score = 0;
-            d_spoofer_score = d_score.total_score();
+                return distance < d_max_jump_distance;
+            }
+
+        case 3:  // Check if the calculated solution is in the proximity of the lkg solution
+            {
+                return distance < d_pos_error_threshold;
+            }
         }
 }
 
-void PVTConsistencyChecks::position_jump()
+bool PVTConsistencyChecks::check_position_jump()
 {
-    double distance_to_lkgl;  // LKGL - Last Known Good Location
-    double jump_distance;
-
     bool is_spoofing = false;
-
-    DLOG(INFO) << "POS_JUMP: check";
 
     if (d_first_record)
         {
@@ -153,56 +173,31 @@ void PVTConsistencyChecks::position_jump()
                 }
 
             d_first_record = false;
-            return;
+            return false;
         }
 
-    jump_distance = calculate_distance_ECEF(&d_old_pvt, &d_new_pvt);
-    DLOG(INFO) << "POS_JUMP: Old (" << d_old_pvt.ecef_y << "," << d_old_pvt.ecef_x << ") received ("
-               << d_new_pvt.ecef_y << "," << d_new_pvt.ecef_x << ") Distance: "
-               << jump_distance << " Spoofer score: " << get_spoofer_score();
 
-    if (jump_distance > d_max_jump_distance)
+    if (!validate_location_proximity(&d_old_pvt, &d_new_pvt, 2))
         {
-            distance_to_lkgl = calculate_distance_ECEF(&d_lkg_pvt, &d_new_pvt);
-
-            if (distance_to_lkgl < d_pos_error_threshold)
+            if (validate_location_proximity(&d_lkg_pvt, &d_new_pvt, 3))
                 {
                     // Reset jump check when the receiver is back to the last known good location
                     reset_pos_jump_check();
                 }
             else
                 {
-                    DLOG(INFO) << "POS_JUMP: Jump distance: " << jump_distance;
-
                     // A naive way of checking if the jump is legitimate jump or is caused by spoofing.
                     // (A legitimate jump will occur if the receiver looses lock and re-acquires it)
                     //uint32_t dt = d_new_pvt.tstamp - d_lkg_pvt.tstamp;
 
-                    //double est_dist_travelled = dt * d_lkg_pvt.speed_over_ground;
-
-                    if (check_propagated_pos())
+                    if (!check_propagated_pos())
                         {
-                            DLOG(INFO) << "POS_JUMP: Propagated position detects spoofing";
                             is_spoofing = true;
                         }
-                    else
-                        {
-                            DLOG(INFO) << "POS_JUMP: Propagated position did not detect spoofing";
-                        }
-
-                    // if (abs(est_dist_travelled - distance_to_lkgl) > 10)
-                    //     {
-                    //         if (abs(d_lkg_pvt.heading - d_new_pvt.heading) == 5)
-                    //             {
-                    //             }
-                    //         DLOG(INFO) << "POS_JUMP: Estimated travel distance and heading: " << est_dist_travelled << ", " << d_new_pvt.heading;
-                    //     }
 
                     if (is_spoofing)
                         {
-                            d_score.position_jump_score = 2;
-                            d_spoofer_score = d_score.total_score();
-                            DLOG(INFO) << "POS_JUMP: Spoofer score: " << d_spoofer_score << " - Jump distance: " << jump_distance;
+                            DLOG(INFO) << "POS_JUMP: Spoofer score: " << d_spoofer_score;
 
                             // Set last known good location to old coordinates
                             if (d_update_lkgl)
@@ -210,6 +205,7 @@ void PVTConsistencyChecks::position_jump()
                                     update_lkg_pvt(true);  // Set old = true, hence set old location as lkg
                                     d_update_lkgl = false;
                                 }
+                            return true;
                         }
                 }
         }
@@ -217,8 +213,7 @@ void PVTConsistencyChecks::position_jump()
         {
             if (d_score.position_jump_score == 2)
                 {
-                    distance_to_lkgl = calculate_distance_ECEF(&d_lkg_pvt, &d_new_pvt);
-                    if (distance_to_lkgl < d_pos_error_threshold)
+                    if (validate_location_proximity(&d_lkg_pvt, &d_new_pvt, 3))
                         {
                             // Reset jump check when the receiver is back to the last known good location
                             reset_pos_jump_check();
@@ -231,11 +226,10 @@ void PVTConsistencyChecks::position_jump()
                 }
         }
 
-    DLOG(INFO) << "POS_JUMP: Old location updated to: " << d_new_pvt.ecef_y << ", " << d_new_pvt.ecef_x << ", " << d_new_pvt.ecef_z;
-    DLOG(INFO) << "POS_JUMP: Last known good location: " << d_lkg_pvt.ecef_y << ", " << d_lkg_pvt.ecef_x;
-    DLOG(INFO) << "POS_JUMP: Distance to LKGL: " << distance_to_lkgl;
+    return false;
 }
 
+// Propagates the PVT solution using the reported velocity and validates the location proximity
 bool PVTConsistencyChecks::check_propagated_pos()
 {
     PvtSol temp_pvt;
@@ -251,7 +245,7 @@ bool PVTConsistencyChecks::check_propagated_pos()
     DLOG(INFO) << "PROPAGATE_POS: Recv " << d_new_pvt.ecef_y << "," << d_new_pvt.ecef_x << ", " << d_new_pvt.ecef_z;
     DLOG(INFO) << "PROPAGATE_POS: Error: " << distance_error;
 
-    return distance_error > d_pos_error_threshold;
+    return validate_location_proximity(&temp_pvt, &d_new_pvt, 3);
 }
 
 void PVTConsistencyChecks::check_time()
@@ -344,8 +338,6 @@ void PVTConsistencyChecks::update_lkg_pvt(bool set_old)
 
 void PVTConsistencyChecks::reset_pos_jump_check()
 {
-    d_score.position_jump_score = 0;
-
     // Set last known good location to current coordinates
     update_lkg_pvt(false);  // Set old = false, hence set new location as lkg
 
@@ -367,31 +359,6 @@ long double PVTConsistencyChecks::to_radians(double degree)
     // Convert degrees to radians
     long double one_deg = (M_PI) / 180;
     return (one_deg * degree);
-}
-
-long double PVTConsistencyChecks::calculate_distance(double lat1, double lon1, double lat2, double lon2)
-{
-    // Calculate distance between l1 and l2 using Haversine formula
-    lat1 = to_radians(lat1);
-    lon1 = to_radians(lon1);
-    lat2 = to_radians(lat2);
-    lon2 = to_radians(lon2);
-
-    // Haversine Formula
-    long double dlong = lon2 - lon1;
-    long double dlat = lat2 - lat1;
-
-    long double distance = pow(sin(dlat / 2), 2) +
-                           cos(lat1) * cos(lat2) *
-                               pow(sin(dlong / 2), 2);
-
-    distance = 2 * asin(sqrt(distance));
-
-    long double R = 6371000;
-
-    // Calculate the result
-    distance = distance * R;
-    return distance;
 }
 
 long double PVTConsistencyChecks::calculate_distance_ECEF(const PvtSol* pvtsol1, const PvtSol* pvtsol2)
