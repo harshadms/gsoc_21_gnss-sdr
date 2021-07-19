@@ -142,6 +142,7 @@ std::string TcpCmdInterface::status(const std::vector<std::string> &commandLine 
     double ground_speed_kmh;
     double course_over_ground_deg;
     time_t UTC_time;
+
     if (PVT_sptr_->get_latest_PVT(&longitude_deg,
             &latitude_deg,
             &height_m,
@@ -171,6 +172,9 @@ std::string TcpCmdInterface::status(const std::vector<std::string> &commandLine 
         {
             str_stream << "No PVT information available.\n";
         }
+
+    // TO-DO: Implement a spoofer status report
+
 
     return str_stream.str();
 }
@@ -326,6 +330,7 @@ std::string TcpCmdInterface::switch_peaks(const std::vector<std::string> &comman
 
     return response;
 }
+
 
 void TcpCmdInterface::set_msg_queue(std::shared_ptr<Concurrent_Queue<pmt::pmt_t>> control_queue)
 {
