@@ -111,6 +111,11 @@ public:
     void clear_ephemeris();
 
     /*!
+    * \brief Switch between primary peaks and auxiliary peaks for calculating the PVT solution - works with APT
+    */
+
+    int switch_peaks();
+    /*!
      * \brief Get the latest Position WGS84 [deg], Ground Velocity, Course over Ground, and UTC Time, if available
      */
     bool get_latest_PVT(double* longitude_deg,
@@ -122,6 +127,7 @@ public:
 
     int work(int noutput_items, gr_vector_const_void_star& input_items,
         gr_vector_void_star& output_items);  //!< PVT Signal Processing
+
 
 private:
     friend rtklib_pvt_gs_sptr rtklib_make_pvt_gs(uint32_t nchannels,
@@ -272,6 +278,8 @@ private:
     bool d_waiting_obs_block_rx_clock_offset_correction_msg;
     bool d_enable_rx_clock_correction;
     bool d_enable_security_checks;
+    bool d_enable_apt;
+    bool d_use_aux_peak;
 
     PVTConsistencyChecks d_spoofing_detector;
     bool d_print_score;

@@ -27,9 +27,10 @@
 #include <gnuradio/block.h>  // for block
 #include <gnuradio/types.h>  // for gr_vector_const_void_star
 #include <array>             // for array
-#include <cstdint>           // for int32_t
-#include <fstream>           // for ofstream
-#include <string>            // for string
+#include <chrono>
+#include <cstdint>  // for int32_t
+#include <fstream>  // for ofstream
+#include <string>   // for string
 
 /** \addtogroup Telemetry_Decoder
  * \{ */

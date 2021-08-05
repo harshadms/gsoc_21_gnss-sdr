@@ -67,6 +67,7 @@ private:
     std::string hotstart(const std::vector<std::string> &commandLine);
     std::string warmstart(const std::vector<std::string> &commandLine);
     std::string coldstart(const std::vector<std::string> &commandLine);
+    std::string switch_peaks(const std::vector<std::string> &commandLine);
     std::string set_ch_satellite(const std::vector<std::string> &commandLine);
 
     void register_functions();

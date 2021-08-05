@@ -37,6 +37,7 @@
 #include "channel.h"
 #include "configuration_interface.h"
 #include "direct_resampler_conditioner.h"
+#include "display.h"
 #include "fifo_signal_source.h"
 #include "file_signal_source.h"
 #include "fir_filter.h"
@@ -114,7 +115,6 @@
 #include <exception>  // for exception
 #include <iostream>   // for cerr
 #include <utility>    // for move
-
 #if RAW_UDP
 #include "custom_udp_signal_source.h"
 #endif
@@ -315,7 +315,7 @@ std::unique_ptr<GNSSBlockInterface> GNSSBlockFactory::GetObservables(const Confi
     Galileo_channels += configuration->property("Channels_5X.count", 0);
     Galileo_channels += configuration->property("Channels_7X.count", 0);
     Galileo_channels += configuration->property("Channels_E6.count", 0);
-    unsigned int GPS_channels = configuration->property("Channels_1C.count", 0);
+    unsigned int GPS_channels = GetGPSL1Channels(configuration);
     GPS_channels += configuration->property("Channels_2S.count", 0);
     GPS_channels += configuration->property("Channels_L5.count", 0);
     unsigned int Glonass_channels = configuration->property("Channels_1G.count", 0);
@@ -350,7 +350,7 @@ std::unique_ptr<GNSSBlockInterface> GNSSBlockFactory::GetPVT(const Configuration
     Galileo_channels += configuration->property("Channels_5X.count", 0);
     Galileo_channels += configuration->property("Channels_7X.count", 0);
     Galileo_channels += configuration->property("Channels_E6.count", 0);
-    unsigned int GPS_channels = configuration->property("Channels_1C.count", 0);
+    unsigned int GPS_channels = GetGPSL1Channels(configuration);
     GPS_channels += configuration->property("Channels_2S.count", 0);
     GPS_channels += configuration->property("Channels_L5.count", 0);
     unsigned int Glonass_channels = configuration->property("Channels_1G.count", 0);
@@ -440,7 +440,7 @@ std::unique_ptr<std::vector<std::unique_ptr<GNSSBlockInterface>>> GNSSBlockFacto
 {
     int channel_absolute_id = 0;
 
-    const unsigned int Channels_1C_count = configuration->property("Channels_1C.count", 0);
+    const unsigned int Channels_1C_count = GetGPSL1Channels(configuration);
     const unsigned int Channels_1B_count = configuration->property("Channels_1B.count", 0);
     const unsigned int Channels_1G_count = configuration->property("Channels_1G.count", 0);
     const unsigned int Channels_2G_count = configuration->property("Channels_2G.count", 0);
@@ -469,6 +469,7 @@ std::unique_ptr<std::vector<std::unique_ptr<GNSSBlockInterface>>> GNSSBlockFacto
         {
             // **************** GPS L1 C/A CHANNELS ****************************
             LOG(INFO) << "Getting " << Channels_1C_count << " GPS L1 C/A channels";
+            DLOG(INFO) << "DEBUG: " << Channels_1C_count;
 
             for (unsigned int i = 0; i < Channels_1C_count; i++)
                 {
@@ -1733,4 +1734,30 @@ std::unique_ptr<TelemetryDecoderInterface> GNSSBlockFactory::GetTlmBlock(
         }
 
     return block;
+}
+
+// ############## Function to get GPS L1 channels. Number of channels depends on APT config
+unsigned int GNSSBlockFactory::GetGPSL1Channels(const ConfigurationInterface* configuration)
+{
+    unsigned int Channels_1C_count = configuration->property("Channels_1C.count", 0);
+
+    bool enable_apt = configuration->property("SecureACQ.enable_apt", true);
+    // If apt is enabled
+    if (enable_apt)
+        {
+            unsigned int channels_per_sv = configuration->property("SecureACQ.channels_per_sv", 2);
+            unsigned int processor_count = std::thread::hardware_concurrency();
+
+            // Concurrency warning
+            if (processor_count < Channels_1C_count * channels_per_sv)
+                {
+                    std::cout << TEXT_BOLD_RED << "Requested number of threads exceeds processor count. Proceed with caution\n"
+                              << TEXT_RESET;
+                }
+
+            // Increase channels count according to required number of channels per SV
+            Channels_1C_count = Channels_1C_count * channels_per_sv;
+        }
+
+    return Channels_1C_count;
 }

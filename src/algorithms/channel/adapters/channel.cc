@@ -104,6 +104,8 @@ Channel::Channel(const ConfigurationInterface* configuration,
     gnss_signal_ = Gnss_Signal(signal_str);
 
     channel_msg_rx_ = channel_msg_receiver_make_cc(channel_fsm_, repeat_);
+
+    primary_channel_flag = true;
 }
 
 
@@ -215,11 +217,26 @@ void Channel::set_signal(const Gnss_Signal& gnss_signal)
     gnss_synchro_.PRN = gnss_signal_.get_satellite().get_PRN();
     gnss_synchro_.System = gnss_signal_.get_satellite().get_system_short().c_str()[0];
     acq_->set_local_code();
+
     if (flag_enable_fpga_)
         {
             trk_->set_gnss_synchro(&gnss_synchro_);
         }
     nav_->set_satellite(gnss_signal_.get_satellite());
+}
+
+
+void Channel::set_APT_status(bool primary_flag, uint32_t channel_id, uint32_t peak_no)
+{
+    gnss_synchro_.Flag_Primary_Channel = primary_flag;
+    primary_channel_flag = primary_flag;
+    primary_channel_id = channel_id;
+    peak_to_track = peak_no;
+    gnss_synchro_.Peak_to_track = peak_to_track;
+    if (!primary_flag)
+        {
+            gnss_synchro_.Primary_Channel_ID = channel_id;
+        }
 }
 
 

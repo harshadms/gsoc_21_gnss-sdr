@@ -50,6 +50,8 @@ class PvtInterface : public GNSSBlockInterface
 public:
     virtual void reset() = 0;
     virtual void clear_ephemeris() = 0;
+    virtual int switch_peaks() = 0;
+
     virtual std::map<int, Gps_Ephemeris> get_gps_ephemeris() const = 0;
     virtual std::map<int, Galileo_Ephemeris> get_galileo_ephemeris() const = 0;
     virtual std::map<int, Gps_Almanac> get_gps_almanac() const = 0;

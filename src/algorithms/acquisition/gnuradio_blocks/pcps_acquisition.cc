@@ -26,6 +26,7 @@
 #include "gnss_sdr_create_directory.h"
 #include "gnss_sdr_filesystem.h"
 #include "gnss_synchro.h"
+//#include "persistence1d.h"
 #include <boost/math/special_functions/gamma.hpp>
 #include <gnuradio/io_signature.h>
 #include <matio.h>
@@ -46,6 +47,12 @@ pcps_acquisition_sptr pcps_make_acquisition(const Acq_Conf& conf_)
     return pcps_acquisition_sptr(new pcps_acquisition(conf_));
 }
 
+struct Peak
+{
+    int code_phase;
+    int doppler;
+    float mag;
+};
 
 pcps_acquisition::pcps_acquisition(const Acq_Conf& conf_) : gr::block("pcps_acquisition",
                                                                 gr::io_signature::make(1, 1, conf_.it_size),
@@ -127,8 +134,15 @@ pcps_acquisition::pcps_acquisition(const Acq_Conf& conf_) : gr::block("pcps_acqu
     d_use_CFAR_algorithm_flag = d_acq_parameters.use_CFAR_algorithm_flag;
     d_dump_number = 0LL;
     d_dump_channel = d_acq_parameters.dump_channel;
+    d_dump_sv = d_acq_parameters.dump_sv;
     d_dump = d_acq_parameters.dump;
+    d_dump_all = d_acq_parameters.dump_all;
     d_dump_filename = d_acq_parameters.dump_filename;
+    d_dump_on_positive_acq = d_acq_parameters.dump_on_positive_acq;
+
+    d_acquire_aux_peaks = d_acq_parameters.enable_apt;
+    d_peak_sep_min = d_acq_parameters.peak_separation * 1e-9 * d_acq_parameters.fs_in;
+
     if (d_dump)
         {
             std::string dump_path;
@@ -143,10 +157,9 @@ pcps_acquisition::pcps_acquisition(const Acq_Conf& conf_) : gr::block("pcps_acqu
                 {
                     dump_path = std::string(".");
                 }
-            if (d_dump_filename.empty())
-                {
-                    d_dump_filename = "acquisition";
-                }
+            {
+                d_dump_filename = "acquisition";
+            }
             // remove extension if any
             if (d_dump_filename.substr(1).find_last_of('.') != std::string::npos)
                 {
@@ -350,6 +363,7 @@ void pcps_acquisition::send_positive_acquisition()
                << ", Assist doppler_center " << d_doppler_center;
     d_positive_acq = 1;
 
+    DLOG(INFO) << "APT: CH: " << d_channel << ", " << d_gnss_synchro->Acq_delay_samples << ", " << d_gnss_synchro->Acq_doppler_hz << ", " << d_gnss_synchro->Peak_to_track;
     if (!d_channel_fsm.expired())
         {
             // the channel FSM is set, so, notify it directly the positive acquisition to minimize delays
@@ -595,13 +609,105 @@ float pcps_acquisition::first_vs_second_peak_statistic(uint32_t& indext, int32_t
 }
 
 
+void pcps_acquisition::acquire_aux_peak(uint32_t num_doppler_bins, int32_t doppler_max, int32_t doppler_step)
+{
+    // Block of code to acquire auxiliary peaks
+    std::vector<float> peaks;
+    std::map<float, Peak> d_highest_peaks;
+    std::vector<int> bins_to_search;
+
+    float grid_maximum = 0.0;
+    uint32_t tmp_intex_t = 0U;
+
+    double temp_code_phase = 0;
+
+    // Set code phase limits for aux peak detection
+
+    const int32_t effective_fft_size = (d_acq_parameters.bit_transition_flag ? d_fft_size / 2 : d_fft_size);
+
+    for (uint32_t i = 0; i < num_doppler_bins; i++)
+        {
+            volk_gnsssdr_32f_index_max_32u(&tmp_intex_t, d_magnitude_grid[i].data(), effective_fft_size);
+
+            if (d_magnitude_grid[i][tmp_intex_t] > grid_maximum)
+                {
+                    grid_maximum = d_magnitude_grid[i][tmp_intex_t];
+
+                    d_test_statistics = grid_maximum / d_input_power;
+
+                    // Search bins with atleast 1 peak above threshold
+                    if (d_test_statistics > d_threshold)
+                        {
+                            for (int k = 0; k < effective_fft_size; k++)
+                                {
+                                    temp_code_phase = static_cast<double>(std::fmod(static_cast<float>(k), d_acq_parameters.samples_per_code));
+                                    if (temp_code_phase <= (d_gnss_synchro->Acq_delay_samples + d_peak_sep_min) &&
+                                        temp_code_phase >= (d_gnss_synchro->Acq_delay_samples - d_peak_sep_min))
+                                        {
+                                            continue;
+                                        }
+
+                                    if (d_threshold > d_magnitude_grid[i][k] / d_input_power)
+                                        {
+                                            continue;
+                                        }
+
+                                    if (d_gnss_synchro->Acq_delay_samples > temp_code_phase && d_magnitude_grid[i][k] < d_magnitude_grid[i][k + 1])
+                                        {
+                                            continue;
+                                        }
+
+                                    if (d_gnss_synchro->Acq_delay_samples < temp_code_phase && d_magnitude_grid[i][k] > d_magnitude_grid[i][k - 1])
+                                        {
+                                            continue;
+                                        }
+
+                                    Peak peak;
+                                    peak.mag = d_magnitude_grid[i][k];
+                                    peak.doppler = -static_cast<int32_t>(doppler_max) + d_doppler_center + doppler_step * static_cast<int32_t>(i);
+
+                                    peak.code_phase = static_cast<double>(std::fmod(static_cast<float>(k), d_acq_parameters.samples_per_code));
+
+                                    d_highest_peaks[peak.mag] = peak;
+                                    //DLOG(INFO) << "APT: " << peak.mag << ", " << peak.code_phase << ", " << peak.doppler;
+                                }
+                        }
+                }
+        }
+
+
+    std::map<float, Peak>::reverse_iterator rit;
+
+    uint32_t i = 0;
+
+    for (rit = d_highest_peaks.rbegin(); rit != d_highest_peaks.rend(); ++rit)
+        {
+            if (i == d_peak_to_track)
+                {
+                    DLOG(INFO) << "APT: =================================================================== Range : " << d_gnss_synchro->Acq_delay_samples - d_peak_sep_min << " - " << d_gnss_synchro->Acq_delay_samples + d_peak_sep_min;
+                    DLOG(INFO) << "APT: !!! peak found !!! CH " << d_channel << " : " << d_gnss_synchro->PRN;
+                    DLOG(INFO) << "APT: peak " << rit->first << ", " << d_peak_to_track << ", " << rit->second.code_phase << ", " << rit->second.doppler;
+                    d_test_statistics = rit->first / d_input_power;
+                    d_gnss_synchro->Acq_delay_samples = rit->second.code_phase;
+                    d_gnss_synchro->Acq_doppler_hz = rit->second.doppler;
+
+                    d_aux_peak_found = true;
+                    break;
+                }
+            ++i;
+        }
+}
+
+
 void pcps_acquisition::acquisition_core(uint64_t samp_count)
 {
-    gr::thread::scoped_lock lk(d_setlock);
+    d_aux_peak_found = false;
 
+    gr::thread::scoped_lock lk(d_setlock);
     // Initialize acquisition algorithm
     int32_t doppler = 0;
     uint32_t indext = 0U;
+
     const int32_t effective_fft_size = (d_acq_parameters.bit_transition_flag ? d_fft_size / 2 : d_fft_size);
     if (d_cshort)
         {
@@ -662,7 +768,7 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
                             volk_32f_x2_add_32f(d_magnitude_grid[doppler_index].data(), d_magnitude_grid[doppler_index].data(), d_tmp_buffer.data(), effective_fft_size);
                         }
                     // Record results to file if required
-                    if (d_dump and d_channel == d_dump_channel)
+                    if (d_dump and (d_dump_sv == d_gnss_synchro->PRN or d_dump_all))
                         {
                             memcpy(d_grid.colptr(doppler_index), d_magnitude_grid[doppler_index].data(), sizeof(float) * effective_fft_size);
                         }
@@ -690,6 +796,11 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
                     d_gnss_synchro->Acq_delay_samples = static_cast<double>(std::fmod(static_cast<float>(indext), d_acq_parameters.samples_per_code));
                     d_gnss_synchro->Acq_doppler_hz = static_cast<double>(doppler);
                     d_gnss_synchro->Acq_samplestamp_samples = samp_count;
+                }
+
+            if (d_peak_to_track > 0)
+                {
+                    acquire_aux_peak(d_num_doppler_bins, d_acq_parameters.doppler_max, d_doppler_step);
                 }
         }
     else
@@ -720,9 +831,16 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
                             volk_32f_x2_add_32f(d_magnitude_grid[doppler_index].data(), d_magnitude_grid[doppler_index].data(), d_tmp_buffer.data(), effective_fft_size);
                         }
                     // Record results to file if required
-                    if (d_dump and d_channel == d_dump_channel)
+                    if (d_dump)
                         {
-                            memcpy(d_narrow_grid.colptr(doppler_index), d_magnitude_grid[doppler_index].data(), sizeof(float) * effective_fft_size);
+                            if (d_dump_sv == d_gnss_synchro->PRN)
+                                {
+                                    memcpy(d_narrow_grid.colptr(doppler_index), d_magnitude_grid[doppler_index].data(), sizeof(float) * effective_fft_size);
+                                }
+                            else if (d_dump_channel == d_channel)
+                                {
+                                    memcpy(d_narrow_grid.colptr(doppler_index), d_magnitude_grid[doppler_index].data(), sizeof(float) * effective_fft_size);
+                                }
                         }
                 }
             // Compute the test statistic
@@ -751,7 +869,13 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
                     d_gnss_synchro->Acq_samplestamp_samples = samp_count;
                     d_gnss_synchro->Acq_doppler_step = d_acq_parameters.doppler_step2;
                 }
+
+            if (d_peak_to_track > 0)
+                {
+                    acquire_aux_peak(d_num_doppler_bins_step2, static_cast<int32_t>(d_doppler_center_step_two - (static_cast<float>(d_num_doppler_bins_step2) / 2.0) * d_acq_parameters.doppler_step2), d_acq_parameters.doppler_step2);
+                }
         }
+
 
     if (d_acq_parameters.blocking)
         {
@@ -760,7 +884,12 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
 
     if (!d_acq_parameters.bit_transition_flag)
         {
-            if (d_test_statistics > d_threshold)
+            // if (d_acquire_aux_peaks && !found_peak)
+            //     {
+            //         d_test_statistics = 0;
+            //     }
+
+            if (d_test_statistics > d_threshold && (d_peak_to_track == 0 || d_aux_peak_found))
                 {
                     d_active = false;
                     if (d_acq_parameters.make_2_steps)
@@ -811,7 +940,7 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
     else
         {
             d_active = false;
-            if (d_test_statistics > d_threshold)
+            if (d_test_statistics > d_threshold && (d_peak_to_track == 0 || d_aux_peak_found))
                 {
                     if (d_acq_parameters.make_2_steps)
                         {
@@ -852,15 +981,25 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
     if ((d_num_noncoherent_integrations_counter == d_acq_parameters.max_dwells) or (d_positive_acq == 1))
         {
             // Record results to file if required
-            if (d_dump and d_channel == d_dump_channel)
+            if (d_dump and (d_dump_sv == d_gnss_synchro->PRN or d_dump_all))
                 {
-                    pcps_acquisition::dump_results(effective_fft_size);
+                    // Dump only if positive acq - REMOVE after debugging
+                    if (d_dump_on_positive_acq)
+                        {
+                            if (d_positive_acq)
+                                {
+                                    pcps_acquisition::dump_results(effective_fft_size);
+                                }
+                        }
+                    else
+                        {
+                            pcps_acquisition::dump_results(effective_fft_size);
+                        }
                 }
-            d_num_noncoherent_integrations_counter = 0U;
-            d_positive_acq = 0;
         }
+    d_num_noncoherent_integrations_counter = 0U;
+    d_positive_acq = 0;
 }
-
 
 // Called by gnuradio to enable drivers, etc for i/o devices.
 bool pcps_acquisition::start()
@@ -905,6 +1044,7 @@ int pcps_acquisition::general_work(int noutput_items __attribute__((unused)),
      * 6. Declare positive or negative acquisition using a message port
      */
     gr::thread::scoped_lock lk(d_setlock);
+    d_peak_to_track = d_gnss_synchro->Peak_to_track;
     if (!d_active or d_worker_active)
         {
             if (!d_acq_parameters.blocking_on_standby)
@@ -934,11 +1074,14 @@ int pcps_acquisition::general_work(int noutput_items __attribute__((unused)),
                 d_mag = 0.0;
                 d_state = 1;
                 d_buffer_count = 0U;
+                d_peak_to_track = d_gnss_synchro->Peak_to_track;
+
                 if (!d_acq_parameters.blocking_on_standby)
                     {
                         d_sample_counter += static_cast<uint64_t>(ninput_items[0]);  // sample counter
                         consume_each(ninput_items[0]);
                     }
+                d_gnss_synchro->Acquisition_detection = false;
                 break;
             }
         case 1:

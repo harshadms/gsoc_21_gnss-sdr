@@ -145,6 +145,8 @@ rtklib_pvt_gs::rtklib_pvt_gs(uint32_t nchannels,
         {
             d_spoofing_detector = PVTConsistencyChecks(&conf_.security_parameters);
             d_print_score = conf_.print_score;
+            d_use_aux_peak = conf_.security_parameters.use_aux_peak;
+            d_enable_apt = conf_.security_parameters.enable_apt;
         }
 
     std::string dump_ls_pvt_filename = conf_.dump_filename;
@@ -1539,6 +1541,28 @@ void rtklib_pvt_gs::clear_ephemeris()
         }
 }
 
+// Switch peaks that are being used for calculating the PVT solution
+int rtklib_pvt_gs::switch_peaks()
+{
+    DLOG(INFO) << "SWITCH: AUX Peak " << d_use_aux_peak << " - " << d_enable_apt;
+    if (d_enable_apt)
+        {
+            d_use_aux_peak = !d_use_aux_peak;
+            if (d_use_aux_peak)
+                {
+                    return 1;
+                }
+            else
+                {
+                    return 0;
+                }
+        }
+    else
+        {
+            return 2;
+        }
+}
+
 
 bool rtklib_pvt_gs::send_sys_v_ttff_msg(d_ttff_msgbuf ttff) const
 {
@@ -1845,6 +1869,42 @@ int rtklib_pvt_gs::work(int noutput_items, gr_vector_const_void_star& input_item
             // ############ 1. READ PSEUDORANGES ####
             for (uint32_t i = 0; i < d_nchannels; i++)
                 {
+                    if (d_enable_apt)
+                        {
+                            if (!in[i][epoch].Flag_Primary_Channel)
+                                {
+                                    int p_channel = in[i][epoch].Primary_Channel_ID;
+                                    uint64_t ts_1 = in[i][epoch].Tracking_sample_counter * 1e9 / in[i][epoch].fs;
+
+                                    uint64_t ts_2 = in[p_channel][epoch].Tracking_sample_counter * 1e9 / in[i][epoch].fs;
+
+                                    int64_t diff = ts_1 - ts_2;
+
+
+                                    if ((diff != 0 || std::fmod(abs(diff), 5) > (6.000 * 1e9)) && in[i][epoch].PRN > 0)
+                                        {
+                                            DLOG(INFO) << " APT: ================================= Auxiliary peak detected =================================";
+                                            DLOG(INFO) << " APT:  PRN: " << in[i][epoch].PRN;
+                                            DLOG(INFO) << " APT:  Separation: " << abs(diff);
+                                        }
+                                }
+                            // Ignore aux channels if "use_aux_peak" is set to false. In this case only the primary channel will be used to compute PVT.
+                            if (d_use_aux_peak)
+                                {
+                                    if (in[i][epoch].Peak_to_track == 0)
+                                        {
+                                            continue;
+                                        }
+                                }
+                            else
+                                {
+                                    if (in[i][epoch].Peak_to_track != 0)
+                                        {
+                                            continue;
+                                        }
+                                }
+                        }
+
                     if (in[i][epoch].Flag_valid_pseudorange)
                         {
                             const auto tmp_eph_iter_gps = d_internal_pvt_solver->gps_ephemeris_map.find(in[i][epoch].PRN);
@@ -2246,9 +2306,12 @@ int rtklib_pvt_gs::work(int noutput_items, gr_vector_const_void_star& input_item
                                 {
                                     set_warning_color(COLOR, score);
 
-                                    std::cout
-                                        << COLOR
-                                        << "Spoofer score: " << score << TEXT_RESET << "\n";
+                                    if (score > 0)
+                                        {
+                                            std::cout
+                                                << COLOR
+                                                << "Spoofer score: " << score << TEXT_RESET << "\n";
+                                        }
 
                                     uint32_t count = 0;
 

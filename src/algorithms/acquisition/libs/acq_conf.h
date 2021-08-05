@@ -61,17 +61,23 @@ public:
     uint32_t num_doppler_bins_step2;
     uint32_t resampler_latency_samples;
     uint32_t dump_channel;
+    uint32_t dump_sv;
     int32_t doppler_max;
     int32_t doppler_min;
+    uint32_t peak_separation;
 
     bool bit_transition_flag;
     bool use_CFAR_algorithm_flag;
     bool dump;
+    bool dump_all;
+
     bool blocking;
     bool blocking_on_standby;  // enable it only for unit testing to avoid sample consume on idle status
     bool make_2_steps;
     bool use_automatic_resampler;
     bool enable_monitor_output;
+    bool dump_on_positive_acq;
+    bool enable_apt;
 
 private:
     void SetDerivedParams();
