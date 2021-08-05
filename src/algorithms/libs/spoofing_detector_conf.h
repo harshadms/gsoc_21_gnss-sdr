@@ -46,4 +46,10 @@ public:
     double static_lon;
     double static_alt;
 };
+
+class TLMConsistencyChecksConf
+{
+public:
+    TLMConsistencyChecksConf();
+};
 #endif  // GNSS_SDR_PVT_CONF_H
