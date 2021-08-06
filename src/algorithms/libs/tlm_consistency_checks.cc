@@ -46,21 +46,24 @@ void TLMConsistencyChecks::check_RX_clock()
 
 void TLMConsistencyChecks::check_clock_jump()
 {
-    double sample_diff = d_new_clock.sample_counter - d_old_clock.sample_counter;
-    double sample_diff_time = sample_diff * 1000 / d_gnss_synchro.fs;
+    double sample_diff = d_new_clock.sample_counter - d_lkg_clock.sample_counter;
+    double sample_diff_time = (sample_diff * 1000) / d_gnss_synchro.fs;
 
-    uint32_t tow_diff = d_new_clock.tow - d_old_clock.tow;
+    uint32_t tow_diff = d_new_clock.tow - d_lkg_clock.tow;
 
     uint32_t time_diff = abs(tow_diff - sample_diff_time);
 
     if (time_diff > 20)
         {
-            DLOG(INFO) << "TLM_CHECKS:  PRN " << PRN << " Sample diff - " << sample_diff_time << " TOW diff - " << tow_diff;
+            DLOG(INFO) << "TLM_CHECKS:  PRN " << d_gnss_synchro.PRN << " Sample diff - " << sample_diff_time << " TOW diff - " << tow_diff;
+            set_old_clock();
+            set_lkg_clock(true);
+            return;
         }
 
-    DLOG(INFO) << "TLM_CHECKS:  PRN " << PRN << " Sample diff - " << sample_diff_time << " TOW diff - " << tow_diff;
     set_old_clock();
     set_lkg_clock(false);
+    return;
 }
 
 void TLMConsistencyChecks::update_clock_info(uint64_t sample_counter, uint32_t tow, uint32_t wn)

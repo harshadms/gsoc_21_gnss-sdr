@@ -262,6 +262,59 @@ void PVTConsistencyChecks::check_time()
         }
 }
 
+// Clock offset
+void PVTConsistencyChecks::check_clock_offset(double clk_offset, double clk_drift)
+{
+    ClockOffset offset;
+    offset.offset = clk_offset;
+    offset.drift = clk_drift * 1e-6;  //aging per sec
+
+    offset.timestamp = PVTConsistencyChecks::CurrentTime_nanoseconds();
+
+    d_clock_offsets_vector.push_back(offset);
+
+    // TO:DO add a config param for this value
+    if (d_clock_offsets_vector.size() < 1000)
+        {
+            d_clock_offsets_vector.push_back(offset);
+            return;
+        }
+
+    if (d_clock_offsets_vector.size() > 1000)
+        {
+            int no_elements_to_remove = d_clock_offsets_vector.size() - 1000;
+            d_clock_offsets_vector.erase(d_clock_offsets_vector.begin(), d_clock_offsets_vector.begin() + no_elements_to_remove);
+        }
+
+    // Credits - PNT-Integrity library
+    double driftExp = 0.0;
+    double driftVar = 0.0;
+    unsigned int i = 0;
+
+    for (auto it = d_clock_offsets_vector.begin(); it != (d_clock_offsets_vector.end() - 1); ++it)
+        {
+            driftExp += it->drift;
+            driftVar += pow(it->drift, 2);
+            ++i;
+        }
+
+    driftExp = driftExp / i;
+    driftVar = driftVar / i;
+    driftVar = driftVar - pow(driftExp, 2);
+    /// \note driftVar - pow(driftExp,2) can sometimes be slightly negative
+    /// due to quantization, set all negative values to 0
+    if (driftVar < 0)
+        {
+            driftVar = 0.0;
+        }
+
+    double dt = ((d_clock_offsets_vector.rbegin())->timestamp - (d_clock_offsets_vector.rbegin() + 1)->timestamp) / 1e9;
+    double offset_propd = (d_clock_offsets_vector.rbegin() + 1)->offset + (driftExp * dt);
+    double offsetError = fabs(offset_propd - d_clock_offsets_vector.rbegin()->offset);
+
+    DLOG(INFO) << "CLK_OFFSET: Recv offset: " << clk_offset << " - projected: " << offset_propd << " - error: " << offsetError;
+}
+
 // ####### General functions
 void PVTConsistencyChecks::update_pvt(const std::array<double, 3>& pos,
     const std::array<double, 3>& vel,

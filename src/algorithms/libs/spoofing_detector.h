@@ -16,13 +16,17 @@
 
 #ifndef GNSS_SDR_SPOOFING_DETECTOR_H_
 #define GNSS_SDR_SPOOFING_DETECTOR_H_
+#ifndef CURRENT_TIME_H
+#define CURRENT_TIME_H
 
 #include "configuration_interface.h"
 #include "gnss_synchro.h"
 #include "spoofing_detector_conf.h"
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <glog/logging.h>
+#include <chrono>
 #include <map>
+#include <vector>
 
 
 // Collection of PVT consistency checks
@@ -77,6 +81,10 @@ public:
 
     void check_RX_time();
 
+    // ####### Clock offset variance and drift
+    void check_clock_offset(double clk_offset, double clk_drift);
+
+
     bool d_position_check;
 
     int d_spoofer_score;
@@ -117,6 +125,19 @@ private:
     PvtSol d_lkg_pvt;     // Last known good PVT sol
     PvtSol d_static_pvt;  // Static surveyed coordinates to compare received coordinates with
 
+    struct ClockOffset
+    {
+        double offset;
+        double drift;
+        uint64_t timestamp;
+    };
+    std::vector<ClockOffset> d_clock_offsets_vector;  // Vector to store clock offsets
+
+    inline uint64_t CurrentTime_nanoseconds()
+    {
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+    }
+
     bool check_position_jump();                                                                   // Jump check, recheck with a known good location - increase score if close to known location.
     void check_velocity_consistency();                                                            // velocity consistency.
     bool validate_location_proximity(const PvtSol* pvtsol1, const PvtSol* pvtsol2, int test_id);  // Static position check with a known pre-determined location
@@ -124,6 +145,7 @@ private:
     void abnormal_position_checks();  // Check for abnormal positions
 
     void check_time();
+
 
     // ####### General Functions
     void update_old_pvt();
@@ -180,6 +202,8 @@ private:
     void set_lkg_clock(bool set_old);
 };
 #endif
+#endif
+
 /*
 Position Jump - 1
 Compare Velocity - 2

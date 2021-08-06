@@ -34,6 +34,8 @@ set(GNSS_SPLIBS_SOURCES
     gnss_sdr_string_literals.cc
     pvt_consistency_checks.cc
     pvt_consistency_checks_conf.cc
+    tlm_consistency_checks.cc
+    tlm_consistency_checks_conf.cc
 )
 
 set(GNSS_SPLIBS_HEADERS
