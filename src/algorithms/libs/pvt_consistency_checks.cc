@@ -17,6 +17,7 @@
 #include "spoofing_detector.h"
 #include <cmath>  // for floor, fmod, rint, ceil
 #include <map>
+#include <numeric>
 
 PVTConsistencyChecks::PVTConsistencyChecks()
 {
@@ -45,6 +46,9 @@ PVTConsistencyChecks::PVTConsistencyChecks(const PVTConsistencyChecksConf* conf_
     d_max_altitude = conf_->max_altitude;
     d_min_ground_speed = conf_->min_ground_speed;
     d_max_ground_speed = conf_->max_ground_speed;
+
+    d_clk_offset_vector_size = conf_->clk_offset_vector_size;
+    d_clk_offset_error = conf_->clk_offset_error;
 
     d_spoofer_score = 0;
     d_checked_velocity_pairs = 0;  // Number of velocity measurements checked. Velocity measurements are processed in pairs (old and new)
@@ -153,6 +157,8 @@ bool PVTConsistencyChecks::validate_location_proximity(const PvtSol* pvtsol1, co
                 return distance < d_pos_error_threshold;
             }
         }
+
+    return false;
 }
 
 bool PVTConsistencyChecks::check_position_jump()
@@ -251,7 +257,6 @@ bool PVTConsistencyChecks::check_propagated_pos()
 void PVTConsistencyChecks::check_time()
 {
     boost::posix_time::ptime now(boost::posix_time::microsec_clock::universal_time());
-
     if ((now - d_new_pvt.utc_time).total_seconds() < -18)
         {
             DLOG(INFO) << "UTC_TIME_CHECK: Calculated UTC time is " << (now - d_new_pvt.utc_time).total_seconds() << " in future";
@@ -267,22 +272,22 @@ void PVTConsistencyChecks::check_clock_offset(double clk_offset, double clk_drif
 {
     ClockOffset offset;
     offset.offset = clk_offset * 1e9;
-    offset.drift = clk_drift * 1e-3;  //aging per sec
+    offset.drift = clk_drift * 1e-3;  //aging per nanosec
 
     offset.timestamp = PVTConsistencyChecks::CurrentTime_nanoseconds();
 
     d_clock_offsets_vector.push_back(offset);
 
     // TO:DO add a config param for this value
-    if (d_clock_offsets_vector.size() < 2500)
+    if (d_clock_offsets_vector.size() < d_clk_offset_vector_size)
         {
             d_clock_offsets_vector.push_back(offset);
             return;
         }
 
-    if (d_clock_offsets_vector.size() > 2500)
+    if (d_clock_offsets_vector.size() > d_clk_offset_vector_size)
         {
-            int no_elements_to_remove = d_clock_offsets_vector.size() - 2500;
+            int no_elements_to_remove = d_clock_offsets_vector.size() - d_clk_offset_vector_size;
             d_clock_offsets_vector.erase(d_clock_offsets_vector.begin(), d_clock_offsets_vector.begin() + no_elements_to_remove);
         }
 
@@ -311,8 +316,25 @@ void PVTConsistencyChecks::check_clock_offset(double clk_offset, double clk_drif
     double dt = ((d_clock_offsets_vector.rbegin())->timestamp - (d_clock_offsets_vector.rbegin() + 1)->timestamp);
     double offset_propd = (d_clock_offsets_vector.rbegin() + 1)->offset + (driftExp * dt);
     double offsetError = fabs(offset_propd - d_clock_offsets_vector.rbegin()->offset);
+    bool spoofing_flag = false;
 
-    DLOG(INFO) << "CLK_OFFSET: Recv offset: " << clk_offset * 1e9 << " - projected: " << offset_propd << " - error: " << offsetError;
+    // Implement a moving average of offset error
+    d_clock_offest_errors_vector.push_back(offsetError);
+    if (d_clock_offest_errors_vector.size() > d_clk_offset_vector_size / 10)
+        {
+            int no_elements_to_remove = d_clock_offest_errors_vector.size() - d_clk_offset_vector_size / 10;
+            d_clock_offest_errors_vector.erase(d_clock_offest_errors_vector.begin(), d_clock_offest_errors_vector.begin() + no_elements_to_remove);
+
+            double avg_error = std::accumulate(d_clock_offest_errors_vector.begin(), d_clock_offest_errors_vector.end(), 0) / d_clock_offest_errors_vector.size();
+
+            if (avg_error > d_clk_offset_error)
+                {
+                    spoofing_flag = true;
+                    //DLOG(INFO) << "CLK_OFFSET: Spoofing detected at " << PVTConsistencyChecks::CurrentTime_nanoseconds() << " ns  Recv offset: " << clk_offset * 1e9 << " - projected: " << offset_propd << " - error: " << offsetError;
+                }
+        }
+
+    DLOG(INFO) << "CLK_OFFSET: Recv offset: " << clk_offset * 1e9 << " - projected: " << offset_propd << " - error: " << offsetError << " - time: " << PVTConsistencyChecks::CurrentTime_nanoseconds() << " flag: - " << spoofing_flag;
 }
 
 // ####### General functions

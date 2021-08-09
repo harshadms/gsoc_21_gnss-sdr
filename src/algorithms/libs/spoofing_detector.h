@@ -131,7 +131,10 @@ private:
         double drift;
         uint64_t timestamp;
     };
-    std::vector<ClockOffset> d_clock_offsets_vector;  // Vector to store clock offsets
+    std::vector<ClockOffset> d_clock_offsets_vector;   // Vector to store clock offsets
+    std::vector<double> d_clock_offest_errors_vector;  // Vector to store errors
+    uint16_t d_clk_offset_vector_size;
+    int d_clk_offset_error;
 
     inline uint64_t CurrentTime_nanoseconds()
     {

@@ -42,6 +42,9 @@ public:
     int min_ground_speed;
     int max_ground_speed;
 
+    uint16_t clk_offset_vector_size;
+    int clk_offset_error;
+
     double static_lat;
     double static_lon;
     double static_alt;

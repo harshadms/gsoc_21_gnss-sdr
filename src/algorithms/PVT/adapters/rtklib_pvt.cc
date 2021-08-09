@@ -848,7 +848,8 @@ Rtklib_Pvt::Rtklib_Pvt(const ConfigurationInterface* configuration,
             spoofing_detection_parameters.static_lat = configuration->property("SecurePVT.static_lat", 0.0);
             spoofing_detection_parameters.static_lon = configuration->property("SecurePVT.static_lon", 0.0);
             spoofing_detection_parameters.static_alt = configuration->property("SecurePVT.static_alt", 0.0);
-
+            spoofing_detection_parameters.clk_offset_vector_size = configuration->property("SecurePVT.clk_offset_vector_size", 1000);
+            spoofing_detection_parameters.clk_offset_error = configuration->property("SecurePVT.clk_offset_error", 20);
             pvt_output_parameters.security_parameters = spoofing_detection_parameters;
         }
 

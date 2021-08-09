@@ -38,5 +38,8 @@ PVTConsistencyChecksConf::PVTConsistencyChecksConf()
     use_aux_peak = false;
     enable_apt = false;
 
+    clk_offset_vector_size = 1000;
+    clk_offset_error = 20;
+
     std::string filename = "./pos_consistency_results.mat";
 }
