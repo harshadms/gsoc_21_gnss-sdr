@@ -30,6 +30,22 @@
 
 
 // Collection of PVT consistency checks
+class SpoofingDetector
+{
+public:
+    bool enable_spoofing_detection;
+    SpoofingDetector();
+
+    // Load parameters
+    void load_apt_sd_parameters();  // Parameters for auxiliary peak tracking based spoofing detection (function called in acq, obv)
+    void load_pvt_sd_parameters();  // Parameters for PVT consistency checks (function called in rtklib_pvt)
+    void load_amp_sd_parameters();  // Parameters for amplitude based spoofing detection checks (function called in tracking block)
+
+    // APT Variables and functions
+    bool enable_apt;
+    double peak_separation;
+};
+
 class PVTConsistencyChecks
 {
 public:

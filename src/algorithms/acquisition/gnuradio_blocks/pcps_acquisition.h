@@ -45,6 +45,7 @@
 #include "acq_conf.h"
 #include "channel_fsm.h"
 #include "gnss_sdr_fft.h"
+#include "spoofing_detector.h"
 #include <armadillo>
 #include <glog/logging.h>
 #include <gnuradio/block.h>
@@ -278,6 +279,7 @@ private:
     uint32_t d_dump_sv;
     uint32_t d_buffer_count;
     uint32_t d_peak_to_track;
+
     double d_peak_sep_min;  // Minimum peak separation for a peak to be categorized as an adversarial auxiliary peak
 
     bool d_active;
@@ -286,10 +288,10 @@ private:
     bool d_step_two;
     bool d_use_CFAR_algorithm_flag;
     bool d_dump;
+
+    SpoofingDetector d_spoofing_detector;
     bool d_acquire_aux_peaks;
-    bool d_dump_all;
     bool d_aux_peak_found;
-    bool d_dump_on_positive_acq;
 };
 
 

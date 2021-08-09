@@ -136,12 +136,17 @@ pcps_acquisition::pcps_acquisition(const Acq_Conf& conf_) : gr::block("pcps_acqu
     d_dump_channel = d_acq_parameters.dump_channel;
     d_dump_sv = d_acq_parameters.dump_sv;
     d_dump = d_acq_parameters.dump;
-    d_dump_all = d_acq_parameters.dump_all;
     d_dump_filename = d_acq_parameters.dump_filename;
-    d_dump_on_positive_acq = d_acq_parameters.dump_on_positive_acq;
 
-    d_acquire_aux_peaks = d_acq_parameters.enable_apt;
-    d_peak_sep_min = d_acq_parameters.peak_separation * 1e-9 * d_acq_parameters.fs_in;
+    // Spoofing detector
+    d_spoofing_detector = SpoofingDetector();
+    d_acquire_aux_peaks = false;
+
+    if (d_spoofing_detector.enable_spoofing_detection)
+        {
+            d_acquire_aux_peaks = d_spoofing_detector.enable_apt;
+            d_peak_sep_min = d_spoofing_detector.peak_separation * 1e-9 * d_acq_parameters.fs_in;
+        }
 
     if (d_dump)
         {
@@ -768,9 +773,17 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
                             volk_32f_x2_add_32f(d_magnitude_grid[doppler_index].data(), d_magnitude_grid[doppler_index].data(), d_tmp_buffer.data(), effective_fft_size);
                         }
                     // Record results to file if required
-                    if (d_dump and (d_dump_sv == d_gnss_synchro->PRN or d_dump_all))
+                    if (d_dump)
                         {
-                            memcpy(d_grid.colptr(doppler_index), d_magnitude_grid[doppler_index].data(), sizeof(float) * effective_fft_size);
+                            if (d_dump_channel == d_channel && d_dump_sv == 0)
+                                {
+                                    memcpy(d_narrow_grid.colptr(doppler_index), d_magnitude_grid[doppler_index].data(), sizeof(float) * effective_fft_size);
+                                }
+
+                            if (d_dump_sv == d_gnss_synchro->PRN)
+                                {
+                                    memcpy(d_narrow_grid.colptr(doppler_index), d_magnitude_grid[doppler_index].data(), sizeof(float) * effective_fft_size);
+                                }
                         }
                 }
 
@@ -833,11 +846,12 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
                     // Record results to file if required
                     if (d_dump)
                         {
-                            if (d_dump_sv == d_gnss_synchro->PRN)
+                            if (d_dump_channel == d_channel && d_dump_sv == 0)
                                 {
                                     memcpy(d_narrow_grid.colptr(doppler_index), d_magnitude_grid[doppler_index].data(), sizeof(float) * effective_fft_size);
                                 }
-                            else if (d_dump_channel == d_channel)
+
+                            if (d_dump_sv == d_gnss_synchro->PRN)
                                 {
                                     memcpy(d_narrow_grid.colptr(doppler_index), d_magnitude_grid[doppler_index].data(), sizeof(float) * effective_fft_size);
                                 }
@@ -981,17 +995,15 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
     if ((d_num_noncoherent_integrations_counter == d_acq_parameters.max_dwells) or (d_positive_acq == 1))
         {
             // Record results to file if required
-            if (d_dump and (d_dump_sv == d_gnss_synchro->PRN or d_dump_all))
+
+            if (d_dump)
                 {
-                    // Dump only if positive acq - REMOVE after debugging
-                    if (d_dump_on_positive_acq)
+                    if (d_dump_channel == d_channel && d_dump_sv == 0)
                         {
-                            if (d_positive_acq)
-                                {
-                                    pcps_acquisition::dump_results(effective_fft_size);
-                                }
+                            pcps_acquisition::dump_results(effective_fft_size);
                         }
-                    else
+
+                    if (d_dump_sv == d_gnss_synchro->PRN)
                         {
                             pcps_acquisition::dump_results(effective_fft_size);
                         }
