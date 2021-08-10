@@ -19,6 +19,7 @@
 #ifndef CURRENT_TIME_H
 #define CURRENT_TIME_H
 
+#include "channel_event.h"
 #include "concurrent_queue.h"
 #include "gnss_synchro.h"
 #include "spoofing_detector_conf.h"
@@ -28,6 +29,7 @@
 #include <chrono>
 #include <map>
 #include <vector>
+
 
 class SpoofingDetectorConfig
 {
@@ -103,6 +105,8 @@ public:
     SpoofingDetector(const SpoofingDetectorConfig* conf_);
 
     void set_msg_queue(std::shared_ptr<Concurrent_Queue<pmt::pmt_t>> control_queue);
+    void stop_tracking(int channel);
+
     std::shared_ptr<Concurrent_Queue<pmt::pmt_t>> control_queue_;
 
     // ####### PVT Consistency functions

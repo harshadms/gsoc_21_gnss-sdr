@@ -1563,6 +1563,12 @@ int rtklib_pvt_gs::switch_peaks()
         }
 }
 
+void rtklib_pvt_gs::set_msg_queue(std::shared_ptr<Concurrent_Queue<pmt::pmt_t>> control_queue)
+{
+    DLOG(INFO) << "Setting message queue for spoofing detector object";
+    d_spoofing_detector.set_msg_queue(control_queue);
+}
+
 
 bool rtklib_pvt_gs::send_sys_v_ttff_msg(d_ttff_msgbuf ttff) const
 {
@@ -1869,44 +1875,51 @@ int rtklib_pvt_gs::work(int noutput_items, gr_vector_const_void_star& input_item
             // ############ 1. READ PSEUDORANGES ####
             for (uint32_t i = 0; i < d_nchannels; i++)
                 {
-                    if (d_enable_apt)
-                        {
-                            if (!in[i][epoch].Flag_Primary_Channel)
-                                {
-                                    int p_channel = in[i][epoch].Primary_Channel_ID;
-                                    uint64_t ts_1 = in[i][epoch].Tracking_sample_counter * 1e9 / in[i][epoch].fs;
-
-                                    uint64_t ts_2 = in[p_channel][epoch].Tracking_sample_counter * 1e9 / in[i][epoch].fs;
-
-                                    int64_t diff = ts_1 - ts_2;
-
-
-                                    if ((diff != 0 || std::fmod(abs(diff), 5) > (6.000 * 1e9)) && in[i][epoch].PRN > 0)
-                                        {
-                                            DLOG(INFO) << " APT: ================================= Auxiliary peak detected =================================";
-                                            DLOG(INFO) << " APT:  PRN: " << in[i][epoch].PRN;
-                                            DLOG(INFO) << " APT:  Separation: " << abs(diff);
-                                        }
-                                }
-                            // Ignore aux channels if "use_aux_peak" is set to false. In this case only the primary channel will be used to compute PVT.
-                            if (d_use_aux_peak)
-                                {
-                                    if (in[i][epoch].Peak_to_track == 0)
-                                        {
-                                            continue;
-                                        }
-                                }
-                            else
-                                {
-                                    if (in[i][epoch].Peak_to_track != 0)
-                                        {
-                                            continue;
-                                        }
-                                }
-                        }
 
                     if (in[i][epoch].Flag_valid_pseudorange)
                         {
+                            if (d_enable_apt)
+                                {
+                                    if (!in[i][epoch].Flag_Primary_Channel)
+                                        {
+                                            int p_channel = in[i][epoch].Primary_Channel_ID;
+                                            uint64_t ts_1 = in[i][epoch].Tracking_sample_counter * 1e9 / in[i][epoch].fs;
+
+                                            uint64_t ts_2 = in[p_channel][epoch].Tracking_sample_counter * 1e9 / in[i][epoch].fs;
+
+                                            int64_t diff = ts_1 - ts_2;
+
+                                            if ((diff != 0 || std::fmod(abs(diff), 5) > (6.000 * 1e9)) && in[i][epoch].PRN > 0)
+                                                {
+                                                    DLOG(INFO) << " APT: ================================= Auxiliary peak detected =================================";
+                                                    DLOG(INFO) << " APT:  PRN: " << in[i][epoch].PRN;
+                                                    DLOG(INFO) << " APT:  Separation: " << abs(diff);
+
+                                                    // Do not stop tracking the aux peak if it is being used for PVT calculation
+                                                }
+
+                                            if (!d_use_aux_peak)
+                                                {
+                                                    d_spoofing_detector.stop_tracking(i);
+                                                }
+                                        }
+                                    // Ignore aux channels if "use_aux_peak" is set to false. In this case only the primary channel will be used to compute PVT.
+                                    if (d_use_aux_peak)
+                                        {
+                                            if (in[i][epoch].Peak_to_track == 0)
+                                                {
+                                                    continue;
+                                                }
+                                        }
+                                    else
+                                        {
+                                            if (in[i][epoch].Peak_to_track != 0)
+                                                {
+                                                    continue;
+                                                }
+                                        }
+                                }
+
                             const auto tmp_eph_iter_gps = d_internal_pvt_solver->gps_ephemeris_map.find(in[i][epoch].PRN);
                             const auto tmp_eph_iter_gal = d_internal_pvt_solver->galileo_ephemeris_map.find(in[i][epoch].PRN);
                             const auto tmp_eph_iter_cnav = d_internal_pvt_solver->gps_cnav_ephemeris_map.find(in[i][epoch].PRN);

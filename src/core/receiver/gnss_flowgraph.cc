@@ -2013,6 +2013,7 @@ void GNSSFlowgraph::acquisition_manager(unsigned int who)
  * -> 0 acquisition failed
  * -> 1 acquisition successful
  * -> 2 tracking lost
+ * -> 3 Re-acquire aux peak (spoofing detector)
  * --- actions from TC receiver control ---
  * -> 10 TC request standby mode
  * -> 11 TC request coldstart
@@ -2102,6 +2103,20 @@ void GNSSFlowgraph::apply_action(unsigned int who, unsigned int what)
                         }
                 }
             break;
+
+        case 3:
+            channels_[who]->stop_channel();
+            gs = channels_[who]->get_signal();
+            DLOG(INFO) << "Channel " << who << " TRK Stopped satellite " << gs.get_satellite() << " - Spoofing detector - re-acquire new peak";
+
+            channels_state_[who] = 0;
+            LOG(INFO) << "Channel " << who << " Idle state";
+            if (sat == 0)
+                {
+                    push_back_signal(channels_[who]->get_signal());
+                }
+            break;
+
         case 10:  // request standby mode
             for (size_t n = 0; n < channels_.size(); n++)
                 {
@@ -2666,11 +2681,10 @@ void GNSSFlowgraph::set_channels_state()
 
 void GNSSFlowgraph::set_APT_status()
 {
-    if (enable_apt)
+    for (int i = 0; i < channels_count_; i++)
         {
-            for (int i = 0; i < channels_count_; i++)
-                {
-                    // Set the peak to track
+            if (enable_apt)
+                {  // Set the peak to track
                     uint32_t peak_to_track = floor(i / (channels_count_ / channels_per_sv));
 
                     if (i < (channels_count_ / channels_per_sv))
@@ -2682,6 +2696,10 @@ void GNSSFlowgraph::set_APT_status()
                             uint32_t id = i % (channels_count_ / channels_per_sv);
                             channels_.at(i)->set_APT_status(false, id, peak_to_track);
                         }
+                }
+            else
+                {
+                    channels_.at(i)->set_APT_status(true, i, 0);
                 }
         }
 }

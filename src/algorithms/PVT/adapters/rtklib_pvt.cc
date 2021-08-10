@@ -895,6 +895,12 @@ int Rtklib_Pvt::switch_peaks()
     return pvt_->switch_peaks();
 }
 
+void Rtklib_Pvt::set_msg_queue(std::shared_ptr<Concurrent_Queue<pmt::pmt_t>> control_queue)
+{
+    DLOG(INFO) << "Setting message queue for spoofing detector object";
+    pvt_->set_msg_queue(control_queue);
+}
+
 
 std::map<int, Gps_Ephemeris> Rtklib_Pvt::get_gps_ephemeris() const
 {

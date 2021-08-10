@@ -1,4 +1,5 @@
 #include "spoofing_detector.h"
+#include "channel_event.h"
 
 /*!
  * \file pvt_consistency_checks.cc
@@ -543,8 +544,13 @@ long double SpoofingDetector::calculate_distance_ECEF(const PvtSol* pvtsol1, con
 
 void SpoofingDetector::set_msg_queue(std::shared_ptr<Concurrent_Queue<pmt::pmt_t>> control_queue)
 {
+    DLOG(INFO) << "Setting message queue for spoofing detector object";
     control_queue_ = std::move(control_queue);
 }
 
+void SpoofingDetector::stop_tracking(int channel)
+{
+    control_queue_->push(pmt::make_any(channel_event_make(channel, 3)));
+}
 
 //#shift everything here, use synchro tracking counter and TOW at current symbol for clock jump

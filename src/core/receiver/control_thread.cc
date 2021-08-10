@@ -355,6 +355,11 @@ int ControlThread::run()
         {
             return 0;
         }
+
+    // Set message queue
+    std::shared_ptr<PvtInterface> PVT_sptr = flowgraph_->get_pvt();
+    PVT_sptr->set_msg_queue(control_queue_);
+
     // Start the flowgraph
     flowgraph_->start();
     if (flowgraph_->running())

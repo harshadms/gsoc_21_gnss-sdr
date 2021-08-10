@@ -368,7 +368,7 @@ void pcps_acquisition::send_positive_acquisition()
                << ", Assist doppler_center " << d_doppler_center;
     d_positive_acq = 1;
 
-    DLOG(INFO) << "APT: CH: " << d_channel << ", " << d_gnss_synchro->Acq_delay_samples << ", " << d_gnss_synchro->Acq_doppler_hz << ", " << d_gnss_synchro->Peak_to_track;
+    DLOG(INFO) << "APT: CH: " << d_channel << ", " << d_gnss_synchro->Acq_delay_samples << ", " << d_gnss_synchro->Acq_doppler_hz << ", " << d_gnss_synchro->Peak_to_track << " , primary " << d_gnss_synchro->Flag_Primary_Channel;
     if (!d_channel_fsm.expired())
         {
             // the channel FSM is set, so, notify it directly the positive acquisition to minimize delays
