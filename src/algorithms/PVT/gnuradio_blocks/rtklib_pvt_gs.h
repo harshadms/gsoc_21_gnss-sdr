@@ -281,7 +281,7 @@ private:
     bool d_enable_apt;
     bool d_use_aux_peak;
 
-    PVTConsistencyChecks d_spoofing_detector;
+    SpoofingDetector d_spoofing_detector;
     bool d_print_score;
     std::string COLOR;
 };

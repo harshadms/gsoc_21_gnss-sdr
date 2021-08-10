@@ -121,6 +121,10 @@ void Acq_Conf::SetFromConfiguration(const ConfigurationInterface *configuration,
         }
 
     enable_monitor_output = configuration->property("AcquisitionMonitor.enable_monitor", false);
+
+    enable_apt = configuration->property("SecureGNSS.enable_apt", true);
+    peak_separation = configuration->property("SecureGNSS.peak_separation", 500);
+
     SetDerivedParams();
 }
 

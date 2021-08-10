@@ -54,6 +54,8 @@ target_link_libraries(telemetry_decoder_libs
 target_include_directories(telemetry_decoder_libs
     PUBLIC
         ${CMAKE_SOURCE_DIR}/src/core/interfaces
+        ${CMAKE_SOURCE_DIR}/src/core/receiver
+        ${CMAKE_SOURCE_DIR}/src/core/libs
 )
 
 if(ENABLE_CLANG_TIDY)

@@ -80,6 +80,7 @@ public:
     bool high_dyn;
     bool dump;
     bool dump_mat;
+    bool enable_sd;
 };
 
 

@@ -26,6 +26,7 @@
 #include <glog/logging.h>
 #include <gnuradio/io_signature.h>
 #include <matio.h>
+#include <pmt/pmt.h>
 #include <array>
 #include <cmath>      // for round
 #include <cstdlib>    // for size_t, llabs

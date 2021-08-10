@@ -590,13 +590,20 @@ dll_pll_veml_tracking::dll_pll_veml_tracking(const Dll_Pll_Conf &conf_) : gr::bl
     d_acc_carrier_phase_initialized = false;
 
     // Spoofing detector
-    d_prompt_I_count = 0;
-    d_spoofing_mark = 0;
-    d_prompt_I_sum = 0;
-    d_threshold = 0;
+    SpoofingDetector d_spoofing_detector = SpoofingDetector();
+    d_enable_sd = d_trk_parameters.enable_sd;
 
-    d_spoofing = false;
-    d_bit_synchronization = false;
+    if (d_enable_sd)
+        {
+            DLOG(INFO) << "SD_STATUS: TRK AMP CHECK ENABLED";
+            d_prompt_I_count = 0;
+            d_spoofing_mark = 0;
+            d_prompt_I_sum = 0;
+            d_threshold = 0;
+
+            d_spoofing = false;
+            d_bit_synchronization = false;
+        }
 }
 
 
@@ -1439,46 +1446,49 @@ void dll_pll_veml_tracking::log_data()
                     uint32_t prn_ = d_acquisition_gnss_synchro->PRN;
                     d_dump_file.write(reinterpret_cast<char *>(&prn_), sizeof(uint32_t));
 
-                    // Spoofing detection part - need to move this to a suitable location later.
-                    if (d_bit_synchronization)
+                    // Spoofing detection part - // add projected amp logic like clock offset
+                    if (d_enable_sd)
                         {
-                            if (abs(prompt_I) > d_threshold)
+                            if (d_bit_synchronization)
                                 {
-                                    if (!d_spoofing)
+                                    if (abs(prompt_I) > d_threshold)
                                         {
-                                            d_spoofing = true;
-                                            DLOG(INFO) << "TRK: Baseband amp jump detected " << prn_ << " Threshold " << d_threshold << " PromptI " << abs(prompt_I);
-                                            d_spoofing_mark = d_prompt_I_count;
-                                            d_acquisition_gnss_synchro->Prompt_corr_detection = true;
+                                            if (!d_spoofing)
+                                                {
+                                                    d_spoofing = true;
+                                                    DLOG(INFO) << "TRK: Baseband amp jump detected " << prn_ << " Threshold " << d_threshold << " PromptI " << abs(prompt_I);
+                                                    d_spoofing_mark = d_prompt_I_count;
+                                                    d_acquisition_gnss_synchro->Prompt_corr_detection = true;
+                                                }
+                                        }
+                                    else
+                                        {
+                                            if (d_spoofing)
+                                                {
+                                                    d_spoofing = false;
+                                                    DLOG(INFO) << "TRK: Baseband amp back to normal PRN " << prn_ << " Threshold " << d_threshold << " PromptI " << abs(prompt_I);
+                                                    d_spoofing_mark = 0;
+                                                    d_acquisition_gnss_synchro->Prompt_corr_detection = false;
+                                                    if (abs(prompt_I) > d_threshold)
+                                                        {
+                                                            d_threshold = abs(prompt_I);
+                                                        }
+                                                }
                                         }
                                 }
                             else
                                 {
-                                    if (d_spoofing)
+                                    d_prompt_I_sum = d_prompt_I_sum + abs(prompt_I);
+
+                                    if (abs(prompt_I) > d_threshold)
                                         {
-                                            d_spoofing = false;
-                                            DLOG(INFO) << "TRK: Baseband amp back to normal PRN " << prn_ << " Threshold " << d_threshold << " PromptI " << abs(prompt_I);
-                                            d_spoofing_mark = 0;
-                                            d_acquisition_gnss_synchro->Prompt_corr_detection = false;
-                                            if (abs(prompt_I) > d_threshold)
-                                                {
-                                                    d_threshold = abs(prompt_I);
-                                                }
+                                            d_threshold = abs(prompt_I);
                                         }
                                 }
-                        }
-                    else
-                        {
-                            d_prompt_I_sum = d_prompt_I_sum + abs(prompt_I);
+                            d_dump_file.write(reinterpret_cast<char *>(&d_spoofing_mark), sizeof(uint32_t));
 
-                            if (abs(prompt_I) > d_threshold)
-                                {
-                                    d_threshold = abs(prompt_I);
-                                }
+                            ++d_prompt_I_count;
                         }
-                    d_dump_file.write(reinterpret_cast<char *>(&d_spoofing_mark), sizeof(uint32_t));
-
-                    ++d_prompt_I_count;
 
                     //d_threshold = abs(d_prompt_I_sum) / d_prompt_I_count;
                 }

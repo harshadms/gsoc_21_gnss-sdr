@@ -19,34 +19,49 @@
 #ifndef CURRENT_TIME_H
 #define CURRENT_TIME_H
 
-#include "configuration_interface.h"
+#include "concurrent_queue.h"
 #include "gnss_synchro.h"
 #include "spoofing_detector_conf.h"
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <glog/logging.h>
+#include <pmt/pmt.h>
 #include <chrono>
 #include <map>
 #include <vector>
 
-
-// Collection of PVT consistency checks
-class SpoofingDetector
+class SpoofingDetectorConfig
 {
 public:
-    bool enable_spoofing_detection;
-    SpoofingDetector();
+    SpoofingDetectorConfig();
 
-    // Load parameters
-    void load_apt_sd_parameters();  // Parameters for auxiliary peak tracking based spoofing detection (function called in acq, obv)
-    void load_pvt_sd_parameters();  // Parameters for PVT consistency checks (function called in rtklib_pvt)
-    void load_amp_sd_parameters();  // Parameters for amplitude based spoofing detection checks (function called in tracking block)
-
-    // APT Variables and functions
+    bool position_check;
+    bool static_pos_check;
+    bool dump_pvt_checks_results;
+    bool use_aux_peak;
     bool enable_apt;
-    double peak_separation;
-};
 
-class PVTConsistencyChecks
+    int max_jump_distance;
+    int geo_fence_radius;
+    int velocity_difference;
+    int pos_error_threshold;
+
+    int min_altitude;
+    int max_altitude;
+    int min_ground_speed;
+    int max_ground_speed;
+
+    uint16_t clk_offset_vector_size;
+    int clk_offset_error;
+
+    double static_lat;
+    double static_lon;
+    double static_alt;
+
+    bool check_TOW = false;
+    bool check_RX_clock = false;
+};
+// Collection of PVT consistency checks
+class SpoofingDetector
 {
 public:
     // ####### Structure to store assurance score - total score and individual scores
@@ -84,9 +99,13 @@ public:
         boost::posix_time::ptime utc_time;
     };
 
-    PVTConsistencyChecks();
-    PVTConsistencyChecks(const PVTConsistencyChecksConf* conf_);
+    SpoofingDetector();
+    SpoofingDetector(const SpoofingDetectorConfig* conf_);
 
+    void set_msg_queue(std::shared_ptr<Concurrent_Queue<pmt::pmt_t>> control_queue);
+    std::shared_ptr<Concurrent_Queue<pmt::pmt_t>> control_queue_;
+
+    // ####### PVT Consistency functions
     void update_pvt(const std::array<double, 3>& pos,
         const std::array<double, 3>& vel,
         double speed_over_ground, double heading,
@@ -95,20 +114,47 @@ public:
     void check_PVT_consistency();
     void dump_results(int check_id);
 
-    void check_RX_time();
 
     // ####### Clock offset variance and drift
     void check_clock_offset(double clk_offset, double clk_drift);
 
+    // ####### Clock jumps
+    struct Clock
+    {
+        uint64_t sample_counter;
+        uint32_t tow;
+        uint32_t wn;
+    };
+
+    void check_RX_clock();
+    void check_ephemeris();
+
+    void update_clock_info(uint64_t sample_counter, uint32_t tow, uint32_t wn);
+    void update_eph_info();
+
+    uint32_t PRN;
+    uint32_t channel_id;
+
+    bool d_check_TOW;
+    bool d_check_RX_clock;
+
+    Clock d_old_clock;
+    Clock d_new_clock;
+    Clock d_lkg_clock;
+
+    void check_TOW_jump();
+    void check_clock_jump();
+
+    void set_old_clock();
+    void set_lkg_clock(bool set_old);
 
     bool d_position_check;
 
     int d_spoofer_score;
     double d_assurance_score;
 
-    const Gnss_Synchro** d_gnss_synchro;
+    Gnss_Synchro* d_gnss_synchro;
 
-private:
     bool d_dump_results;
 
     // ####### Map of last known good location. key is the check type's enumeration
@@ -147,6 +193,7 @@ private:
         double drift;
         uint64_t timestamp;
     };
+
     std::vector<ClockOffset> d_clock_offsets_vector;   // Vector to store clock offsets
     std::vector<double> d_clock_offest_errors_vector;  // Vector to store errors
     uint16_t d_clk_offset_vector_size;
@@ -165,7 +212,6 @@ private:
 
     void check_time();
 
-
     // ####### General Functions
     void update_old_pvt();
     void update_lkg_pvt(bool set_old);
@@ -179,47 +225,42 @@ private:
     boost::posix_time::ptime d_pvt_epoch;
 };
 
-// Collection of telemetry consistency checks
-class TLMConsistencyChecks
-{
-public:
-    // Store RX clock info
-    struct Clock
-    {
-        uint64_t sample_counter;
-        uint32_t tow;
-        uint32_t wn;
-    };
+// // Collection of telemetry consistency checks
+// class TLMConsistencyChecks
+// {
+// public:
+//     // Store RX clock info
 
-    TLMConsistencyChecks();
-    TLMConsistencyChecks(const TLMConsistencyChecksConf* conf_);
 
-    void check_RX_clock();
-    void check_ephemeris();
+//     TLMConsistencyChecks();
+//     TLMConsistencyChecks(const TLMConsistencyChecksConf* conf_);
 
-    void update_clock_info(uint64_t sample_counter, uint32_t tow, uint32_t wn);
-    void update_eph_info();
+//     void check_RX_clock();
+//     void check_ephemeris();
 
-    uint32_t PRN;
-    uint32_t channel_id;
+//     void update_clock_info(uint64_t sample_counter, uint32_t tow, uint32_t wn);
+//     void update_eph_info();
 
-    Gnss_Synchro d_gnss_synchro;
+//     uint32_t PRN;
+//     uint32_t channel_id;
 
-private:
-    bool d_first_record;
-    bool d_check_TOW;
-    bool d_check_RX_clock;
+//     Gnss_Synchro d_gnss_synchro;
 
-    Clock d_old_clock;
-    Clock d_new_clock;
-    Clock d_lkg_clock;
+// private:
+//     bool d_first_record;
+//     bool d_check_TOW;
+//     bool d_check_RX_clock;
 
-    void check_TOW_jump();
-    void check_clock_jump();
+//     Clock d_old_clock;
+//     Clock d_new_clock;
+//     Clock d_lkg_clock;
 
-    void set_old_clock();
-    void set_lkg_clock(bool set_old);
-};
+//     void check_TOW_jump();
+//     void check_clock_jump();
+
+//     void set_old_clock();
+//     void set_lkg_clock(bool set_old);
+// };
 #endif
 #endif
 

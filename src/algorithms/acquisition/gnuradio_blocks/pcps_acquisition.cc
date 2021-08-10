@@ -140,12 +140,12 @@ pcps_acquisition::pcps_acquisition(const Acq_Conf& conf_) : gr::block("pcps_acqu
 
     // Spoofing detector
     d_spoofing_detector = SpoofingDetector();
-    d_acquire_aux_peaks = false;
+    d_acquire_aux_peaks = d_acq_parameters.enable_apt;
 
-    if (d_spoofing_detector.enable_spoofing_detection)
+    if (d_acquire_aux_peaks)
         {
-            d_acquire_aux_peaks = d_spoofing_detector.enable_apt;
-            d_peak_sep_min = d_spoofing_detector.peak_separation * 1e-9 * d_acq_parameters.fs_in;
+            DLOG(INFO) << "SD_STATUS: APT CHECK ENABLED";
+            d_peak_sep_min = d_acq_parameters.peak_separation * 1e-9 * d_acq_parameters.fs_in;
         }
 
     if (d_dump)
@@ -626,6 +626,7 @@ void pcps_acquisition::acquire_aux_peak(uint32_t num_doppler_bins, int32_t doppl
 
     double temp_code_phase = 0;
 
+    DLOG(INFO) << "AUX PEAK";
     // Set code phase limits for aux peak detection
 
     const int32_t effective_fft_size = (d_acq_parameters.bit_transition_flag ? d_fft_size / 2 : d_fft_size);

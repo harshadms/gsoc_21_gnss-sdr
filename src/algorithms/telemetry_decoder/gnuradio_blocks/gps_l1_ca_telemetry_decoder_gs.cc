@@ -120,7 +120,7 @@ gps_l1_ca_telemetry_decoder_gs::gps_l1_ca_telemetry_decoder_gs(
     d_prev_GPS_frame_4bytes = 0;
     d_symbol_history.set_capacity(d_required_symbols);
     d_enable_security_checks = conf.security_checks;
-    d_spoofing_detector = TLMConsistencyChecks(&conf.security_parameters);
+    d_spoofing_detector = SpoofingDetector(&conf.security_parameters);
 }
 
 
@@ -354,6 +354,8 @@ int gps_l1_ca_telemetry_decoder_gs::general_work(int noutput_items __attribute__
     Gnss_Synchro current_symbol{};
     // 1. Copy the current tracking output
     current_symbol = in[0][0];
+    current_symbol.Clock_jump = 0;
+
     // add new symbol to the symbol queue
     d_symbol_history.push_back(current_symbol.Prompt_I);
     d_sample_counter++;  // count for the processed symbols
@@ -520,7 +522,8 @@ int gps_l1_ca_telemetry_decoder_gs::general_work(int noutput_items __attribute__
 
             if (d_enable_security_checks)
                 {
-                    d_spoofing_detector.d_gnss_synchro = current_symbol;
+                    d_spoofing_detector.d_gnss_synchro = &current_symbol;
+
                     d_spoofing_detector.update_clock_info(current_symbol.Tracking_sample_counter, d_TOW_at_current_symbol_ms, d_nav.get_GPS_week());
                     d_spoofing_detector.check_RX_clock();
                 }

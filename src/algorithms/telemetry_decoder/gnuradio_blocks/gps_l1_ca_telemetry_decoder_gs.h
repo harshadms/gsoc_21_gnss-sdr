@@ -115,7 +115,7 @@ private:
 
     bool d_enable_security_checks;
 
-    TLMConsistencyChecks d_spoofing_detector;
+    SpoofingDetector d_spoofing_detector;
 };
 
 

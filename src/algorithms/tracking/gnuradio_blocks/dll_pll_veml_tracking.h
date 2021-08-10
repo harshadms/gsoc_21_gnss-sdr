@@ -22,6 +22,7 @@
 #include "dll_pll_conf.h"
 #include "exponential_smoother.h"
 #include "gnss_block_interface.h"
+#include "spoofing_detector.h"
 #include "tracking_FLL_PLL_filter.h"  // for PLL/FLL filter
 #include "tracking_loop_filter.h"     // for DLL filter
 #include <boost/circular_buffer.hpp>
@@ -193,8 +194,9 @@ private:
     uint32_t d_spoofing_mark;
     float d_prompt_I_sum;
     float d_threshold;
-    bool d_bit_synchronization;
+    bool d_enable_sd;
     bool d_spoofing;
+    bool d_bit_synchronization;
 
     bool d_pull_in_transitory;
     bool d_corrected_doppler;
