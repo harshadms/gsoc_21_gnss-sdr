@@ -53,7 +53,8 @@ void TcpCmdInterface::register_functions()
     functions_["hotstart"] = [&](auto &s) { return TcpCmdInterface::hotstart(s); };
     functions_["warmstart"] = [&](auto &s) { return TcpCmdInterface::warmstart(s); };
     functions_["coldstart"] = [&](auto &s) { return TcpCmdInterface::coldstart(s); };
-    functions_["switch_peaks"] = std::bind(&TcpCmdInterface::switch_peaks, this, std::placeholders::_1);
+    functions_["switch_peaks"] = [&](auto &s) { return TcpCmdInterface::switch_peaks(s); };
+    functions_["spoofer_status"] = [&](auto &s) { return TcpCmdInterface::spoofer_status(s); };
     functions_["set_ch_satellite"] = [&](auto &s) { return TcpCmdInterface::set_ch_satellite(s); };
 #else
     functions_["status"] = std::bind(&TcpCmdInterface::status, this, std::placeholders::_1);
@@ -63,6 +64,7 @@ void TcpCmdInterface::register_functions()
     functions_["warmstart"] = std::bind(&TcpCmdInterface::warmstart, this, std::placeholders::_1);
     functions_["coldstart"] = std::bind(&TcpCmdInterface::coldstart, this, std::placeholders::_1);
     functions_["switch_peaks"] = std::bind(&TcpCmdInterface::switch_peaks, this, std::placeholders::_1);
+    functions_["spoofer_status"] = std::bind(&TcpCmdInterface::spoofer_status, this, std::placeholders::_1);
     functions_["set_ch_satellite"] = std::bind(&TcpCmdInterface::set_ch_satellite, this, std::placeholders::_1);
 #endif
 }
@@ -172,10 +174,18 @@ std::string TcpCmdInterface::status(const std::vector<std::string> &commandLine 
         {
             str_stream << "No PVT information available.\n";
         }
+    return str_stream.str();
+}
 
-    // TO-DO: Implement a spoofer status report
 
+std::string TcpCmdInterface::spoofer_status(const std::vector<std::string> &commandLine __attribute__((unused)))
+{
+    std::stringstream str_stream;
+    PvtChecksScore spoofer_stats;
 
+    PVT_sptr_->get_spoofer_status(&spoofer_stats);
+
+    str_stream << "Spoofer status: Static position check: " << spoofer_stats.static_pos_check_score << "\n";
     return str_stream.str();
 }
 

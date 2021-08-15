@@ -20,6 +20,7 @@
 
 
 #include "concurrent_queue.h"
+#include "spoofing_detector.h"
 #include <pmt/pmt.h>
 #include <array>
 #include <cstdint>
@@ -59,8 +60,7 @@ public:
     void set_pvt(std::shared_ptr<PvtInterface> PVT_sptr);
 
 private:
-    std::unordered_map<std::string, std::function<std::string(const std::vector<std::string> &)>>
-        functions_;
+    std::unordered_map<std::string, std::function<std::string(const std::vector<std::string> &)>> functions_;
     std::string status(const std::vector<std::string> &commandLine);
     std::string reset(const std::vector<std::string> &commandLine);
     std::string standby(const std::vector<std::string> &commandLine);
@@ -69,7 +69,7 @@ private:
     std::string coldstart(const std::vector<std::string> &commandLine);
     std::string switch_peaks(const std::vector<std::string> &commandLine);
     std::string set_ch_satellite(const std::vector<std::string> &commandLine);
-
+    std::string spoofer_status(const std::vector<std::string> &commandLine __attribute__((unused)));
     void register_functions();
 
     std::shared_ptr<Concurrent_Queue<pmt::pmt_t>> control_queue_;
@@ -82,6 +82,8 @@ private:
     time_t receiver_utc_time_;
 
     bool keep_running_;
+
+    SpoofingDetector spoofing_detector;
 };
 
 

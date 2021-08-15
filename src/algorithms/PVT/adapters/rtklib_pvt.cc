@@ -837,7 +837,7 @@ Rtklib_Pvt::Rtklib_Pvt(const ConfigurationInterface* configuration,
             spoofing_detection_config.pos_error_threshold = configuration->property("SecureGNSS.pos_error_threshold", 10);
             spoofing_detection_config.static_pos_check = configuration->property("SecureGNSS.static_pos_check", false);
 
-            spoofing_detection_config.enable_apt = configuration->property("SecureACQ.enable_apt", true);
+            spoofing_detection_config.enable_apt = configuration->property("SecureGNSS.enable_apt", true);
 
             spoofing_detection_config.use_aux_peak = configuration->property("SecureGNSS.use_aux_peak", false);
             spoofing_detection_config.min_altitude = configuration->property("SecureGNSS.min_altitude", -10);
@@ -884,6 +884,10 @@ bool Rtklib_Pvt::get_latest_PVT(double* longitude_deg,
         UTC_time);
 }
 
+void Rtklib_Pvt::get_spoofer_status(PvtChecksScore* spoofer_stats)
+{
+    pvt_->get_spoofer_status(spoofer_stats);
+}
 
 void Rtklib_Pvt::clear_ephemeris()
 {

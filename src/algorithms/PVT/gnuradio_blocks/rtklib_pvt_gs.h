@@ -127,6 +127,11 @@ public:
         time_t* UTC_time) const;
 
     /*!
+     * \brief Get the latest SpoofingDetector stats
+     */
+    void get_spoofer_status(PvtChecksScore* spoofer_stats);
+
+    /*!
      * \brief Set message queue to enable spoofing detector to stop tracking
      */
     void set_msg_queue(std::shared_ptr<Concurrent_Queue<pmt::pmt_t>> control_queue);

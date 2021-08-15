@@ -29,6 +29,7 @@
 #include "gnss_block_interface.h"
 #include "gps_almanac.h"
 #include "gps_ephemeris.h"
+#include "spoofing_detector.h"
 #include <map>
 
 /** \addtogroup Core
@@ -65,6 +66,8 @@ public:
         double* ground_speed_kmh,
         double* course_over_ground_deg,
         time_t* UTC_time) = 0;
+
+    virtual void get_spoofer_status(PvtChecksScore* spoofer_stats) = 0;
 };
 
 

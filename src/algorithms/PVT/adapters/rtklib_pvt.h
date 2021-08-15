@@ -98,6 +98,8 @@ public:
         double* course_over_ground_deg,
         time_t* UTC_time) override;
 
+    void get_spoofer_status(PvtChecksScore* spoofer_stats) override;
+
 private:
     rtklib_pvt_gs_sptr pvt_;
     rtk_t rtk{};
