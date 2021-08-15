@@ -67,21 +67,39 @@ class SpoofingDetector
 {
 public:
     // ####### Structure to store assurance score - total score and individual scores
-    struct Score
+    struct PvtChecksScore
     {
         int position_jump_score = 0;
         double velocity_check_score = 0;
         int static_pos_check_score = 0;
-        int aux_peak_score = 0;
-        int cno_score = 0;
-        int agc_score = 0;
+
+        std::vector<bool> amp_results;
+        std::vector<int> aux_peak_score;
+
         double abnormal_position_score = 0;
+
+        void init_vectors(unsigned int nchannels)
+        {
+            if (amp_results.size() != nchannels && aux_peak_score.size() != nchannels)
+                {
+                    LOG(WARNING) << "Vectors are already initialized.";
+                    return;
+                }
+
+            for (unsigned int i = 0; i < nchannels; i++)
+                {
+                    amp_results.push_back(false);
+                    aux_peak_score.push_back(0);
+                }
+        }
+
         double total_score()
         {
-            return (position_jump_score + velocity_check_score + static_pos_check_score + aux_peak_score + cno_score + agc_score + abnormal_position_score);
+            return (position_jump_score + velocity_check_score + static_pos_check_score + abnormal_position_score);
         }
     };
 
+    PvtChecksScore d_score;
     // ####### Structure to store position solution
     struct PvtSol
     {
@@ -164,7 +182,6 @@ public:
     // ####### Map of last known good location. key is the check type's enumeration
     std::map<unsigned int, PvtSol> last_known_good_location;
 
-    Score d_score;
 
     // ####### Position consistency
     int d_max_jump_distance;

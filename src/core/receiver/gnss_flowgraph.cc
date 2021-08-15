@@ -98,8 +98,8 @@ void GNSSFlowgraph::init()
      */
 
     // APT params
-    enable_apt = configuration_->property("SecureACQ.enable_apt", true);
-    channels_per_sv = configuration_->property("SecureACQ.channels_per_sv", 2);
+    enable_apt = configuration_->property("SecureGNSS.enable_apt", true);
+    channels_per_sv = configuration_->property("SecureGNSS.channels_per_sv", 2);
 
     auto block_factory = std::make_unique<GNSSBlockFactory>();
 

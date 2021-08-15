@@ -147,6 +147,8 @@ rtklib_pvt_gs::rtklib_pvt_gs(uint32_t nchannels,
             d_print_score = conf_.print_score;
             d_use_aux_peak = conf_.security_parameters.use_aux_peak;
             d_enable_apt = conf_.security_parameters.enable_apt;
+
+            d_spoofing_detector.d_score.init_vectors(nchannels);
         }
 
     std::string dump_ls_pvt_filename = conf_.dump_filename;
@@ -1871,13 +1873,12 @@ int rtklib_pvt_gs::work(int noutput_items, gr_vector_const_void_star& input_item
             d_gnss_observables_map.clear();
             const auto** in = reinterpret_cast<const Gnss_Synchro**>(&input_items[0]);  // Get the input buffer pointer
 
-
             // ############ 1. READ PSEUDORANGES ####
             for (uint32_t i = 0; i < d_nchannels; i++)
                 {
-
                     if (in[i][epoch].Flag_valid_pseudorange)
                         {
+                            d_spoofing_detector.d_score.amp_results[i] = in[i][epoch].Prompt_corr_detection;
                             if (d_enable_apt)
                                 {
                                     if (!in[i][epoch].Flag_Primary_Channel)
@@ -1894,7 +1895,7 @@ int rtklib_pvt_gs::work(int noutput_items, gr_vector_const_void_star& input_item
                                                     DLOG(INFO) << " APT: ================================= Auxiliary peak detected =================================";
                                                     DLOG(INFO) << " APT:  PRN: " << in[i][epoch].PRN;
                                                     DLOG(INFO) << " APT:  Separation: " << abs(diff);
-
+                                                    d_spoofing_detector.d_score.aux_peak_score[p_channel] = true;
                                                     // Do not stop tracking the aux peak if it is being used for PVT calculation
                                                 }
 

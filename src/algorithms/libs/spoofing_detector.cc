@@ -308,7 +308,6 @@ void SpoofingDetector::check_clock_offset(double clk_offset, double clk_drift)
 
     d_clock_offsets_vector.push_back(offset);
 
-    // TO:DO add a config param for this value
     if (d_clock_offsets_vector.size() < d_clk_offset_vector_size)
         {
             d_clock_offsets_vector.push_back(offset);

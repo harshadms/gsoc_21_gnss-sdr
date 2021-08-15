@@ -81,6 +81,8 @@ public:
     bool dump;
     bool dump_mat;
     bool enable_sd;
+
+    int amp_vector_size;
 };
 
 

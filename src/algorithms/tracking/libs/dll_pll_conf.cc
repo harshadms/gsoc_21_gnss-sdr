@@ -164,4 +164,5 @@ void Dll_Pll_Conf::SetFromConfiguration(const ConfigurationInterface *configurat
     carrier_lock_test_smoother_samples = configuration->property(role + ".carrier_lock_test_smoother_samples", carrier_lock_test_smoother_samples);
     carrier_lock_test_smoother_alpha = configuration->property(role + ".carrier_lock_test_smoother_alpha", carrier_lock_test_smoother_alpha);
     enable_sd = configuration->property("SecureGNSS.enable_amp_check", false);
+    amp_vector_size = configuration->property("SecureGNSS.amp_vector_size", 100);
 }

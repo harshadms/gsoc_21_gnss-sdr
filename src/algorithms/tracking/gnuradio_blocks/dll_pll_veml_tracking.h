@@ -190,10 +190,19 @@ private:
     uint32_t d_data_secondary_code_length;
 
     // Spoofing detection
+    SpoofingDetector d_spoofing_detector;
+
     uint32_t d_prompt_I_count;
     uint32_t d_spoofing_mark;
+
+    std::vector<double> d_prompt_I_vector;
+    std::vector<double> d_prompt_I_var_vector;
+
     float d_prompt_I_sum;
     float d_threshold;
+
+    uint32_t d_amp_vector_size;
+
     bool d_enable_sd;
     bool d_spoofing;
     bool d_bit_synchronization;
