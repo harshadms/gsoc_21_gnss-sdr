@@ -150,9 +150,11 @@ rtklib_pvt_gs::rtklib_pvt_gs(uint32_t nchannels,
 
             for (uint32_t i = 0; i < nchannels; i++)
                 {
-                    d_spoofing_detector.d_score.amp_results.push_back(false);
-                    d_spoofing_detector.d_score.aux_peak_score.push_back(0);
+                    d_spoofing_detector.d_score.amp_results.insert(i, false);
+                    d_spoofing_detector.d_score.aux_peak_score.insert(i, 0);
                 }
+
+            DLOG(INFO) << "TSTAMP:" << d_spoofing_detector.CurrentTime_nanoseconds();
         }
 
     std::string dump_ls_pvt_filename = conf_.dump_filename;
@@ -1898,17 +1900,18 @@ int rtklib_pvt_gs::work(int noutput_items, gr_vector_const_void_star& input_item
 
                                             int64_t diff = ts_1 - ts_2;
 
-                                            if ((diff != 0 || std::fmod(abs(diff), 5) > (6.000 * 1e9)) && in[i][epoch].PRN > 0)
+                                            if ((diff != 0 || std::fmod(abs(diff), 5) > (6.000 * 1e9)) && diff <= in[i][epoch].fs / 1000 && in[i][epoch].PRN > 0)
                                                 {
                                                     DLOG(INFO) << " APT: ================================= Auxiliary peak detected =================================";
                                                     DLOG(INFO) << " APT:  PRN: " << in[i][epoch].PRN;
                                                     DLOG(INFO) << " APT:  Separation: " << abs(diff);
+
                                                     d_spoofing_detector.d_score.aux_peak_score[p_channel] = abs(diff);
                                                     // Do not stop tracking the aux peak if it is being used for PVT calculation
                                                 }
-
-                                            if (!d_use_aux_peak)
+                                            else
                                                 {
+                                                    DLOG(INFO) << "APT: Stopping channel " << i << " PRN: " << in[i][epoch].PRN;
                                                     d_spoofing_detector.stop_tracking(i);
                                                 }
                                         }

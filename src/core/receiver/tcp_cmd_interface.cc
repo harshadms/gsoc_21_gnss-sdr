@@ -185,7 +185,51 @@ std::string TcpCmdInterface::spoofer_status(const std::vector<std::string> &comm
 
     PVT_sptr_->get_spoofer_status(&spoofer_stats);
 
-    str_stream << "Spoofer status: Static position check: " << spoofer_stats.static_pos_check_score << "\n";
+    str_stream << "============== Spoofing Detection Report - BEGIN ==============\n";
+    int nchannels = spoofer_stats.amp_results.size();
+
+    str_stream << "Auxiliary Peak Tracking: ";
+    int aux_count = 0;
+    int amp_count = 0;
+
+    for (auto i = 0; i < nchannels; i++)
+        {
+            if (spoofer_stats.aux_peak_score[i] > 0)
+                {
+                    str_stream << "\nChannel: " << i << " separation: " << spoofer_stats.aux_peak_score[i];
+                    aux_count++;
+                }
+        }
+
+    if (aux_count == 0)
+        {
+            str_stream << "SPOOFING NOT DETECTED\n";
+        }
+    else
+        {
+            str_stream << "\nAuxiliary peaks detected in " << aux_count << " channels\n";
+        }
+    str_stream << "Overshadow Attack: ";
+    for (auto i = 0; i < nchannels; i++)
+        {
+            if (spoofer_stats.amp_results[i])
+                {
+                    str_stream << "\nChannel: " << i << " overshadow attack: DETECTED";
+                    amp_count++;
+                }
+        }
+
+    if (amp_count == 0)
+        {
+            str_stream << "SPOOFING NOT DETECTED\n";
+        }
+    else
+        {
+            str_stream << "\nOvershadow attack detected on " << aux_count << " channels\n";
+        }
+
+    //str_stream << "Spoofer status: Static position check: " << spoofer_stats.static_pos_check_score << "\n";
+    str_stream << "============== Spoofing Detection Report - END ==============\n";
     return str_stream.str();
 }
 

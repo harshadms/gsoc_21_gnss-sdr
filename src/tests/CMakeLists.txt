@@ -994,7 +994,6 @@ if(NOT ENABLE_PACKAGING AND NOT ENABLE_FPGA)
             algorithms_libs
             signal_processing_testing_lib
             core_receiver
-            core_libs
     )
     target_include_directories(acq_test
         INTERFACE

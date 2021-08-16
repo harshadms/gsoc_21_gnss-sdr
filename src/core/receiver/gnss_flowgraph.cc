@@ -2106,15 +2106,35 @@ void GNSSFlowgraph::apply_action(unsigned int who, unsigned int what)
 
         case 3:
             channels_[who]->stop_channel();
-            gs = channels_[who]->get_signal();
-            DLOG(INFO) << "Channel " << who << " TRK Stopped satellite " << gs.get_satellite() << " - Spoofing detector - re-acquire new peak";
 
-            channels_state_[who] = 0;
-            LOG(INFO) << "Channel " << who << " Idle state";
-            if (sat == 0)
+            gs = channels_[who]->get_signal();
+            DLOG(INFO) << "CHN: " << who << " TRK FAILED satellite " << gs.get_satellite() << " - Restart ACQ";
+            if (acq_channels_count_ < max_acq_channels_)
                 {
-                    push_back_signal(channels_[who]->get_signal());
+                    // try to acquire the same satellite
+                    channels_state_[who] = 1;
+                    acq_channels_count_++;
+                    DLOG(INFO) << "Channel " << who << " Starting acquisition " << gs.get_satellite() << ", Signal " << gs.get_signal_str();
+                    channels_[who]->set_signal(channels_[who]->get_signal());
+
+#if ENABLE_FPGA
+                    // create a task for the FPGA such that it doesn't stop the flow
+                    std::thread tmp_thread(&ChannelInterface::start_acquisition, channels_[who]);
+                    tmp_thread.detach();
+#else
+                    channels_[who]->start_acquisition();
+#endif
                 }
+            else
+                {
+                    channels_state_[who] = 0;
+                    LOG(INFO) << "Channel " << who << " Idle state";
+                    if (sat == 0)
+                        {
+                            push_back_signal(channels_[who]->get_signal());
+                        }
+                }
+            channels_[who]->start_acquisition();
             break;
 
         case 10:  // request standby mode

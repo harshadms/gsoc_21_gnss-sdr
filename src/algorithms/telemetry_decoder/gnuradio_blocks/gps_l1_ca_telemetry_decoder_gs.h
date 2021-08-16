@@ -114,7 +114,7 @@ private:
     bool d_remove_dat;
 
     bool d_enable_security_checks;
-
+    bool d_isprimary_channel;  // To disable new subframe message cout for aux channel
     SpoofingDetector d_spoofing_detector;
 };
 

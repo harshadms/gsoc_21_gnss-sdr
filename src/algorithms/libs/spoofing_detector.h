@@ -36,8 +36,8 @@ struct PvtChecksScore
     double velocity_check_score = 0;
     int static_pos_check_score = 0;
 
-    std::vector<bool> amp_results;
-    std::vector<int> aux_peak_score;
+    std::map<int, bool> amp_results;
+    std::map<int, int> aux_peak_score;
 
     double abnormal_position_score = 0;
 
@@ -79,6 +79,7 @@ public:
     bool check_RX_clock = false;
 };
 // Collection of PVT consistency checks
+
 class SpoofingDetector
 {
 public:
