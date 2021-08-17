@@ -884,9 +884,9 @@ bool Rtklib_Pvt::get_latest_PVT(double* longitude_deg,
         UTC_time);
 }
 
-void Rtklib_Pvt::get_spoofer_status(PvtChecksScore* spoofer_stats)
+bool Rtklib_Pvt::get_spoofer_status(PvtChecksScore* spoofer_stats)
 {
-    pvt_->get_spoofer_status(spoofer_stats);
+    return pvt_->get_spoofer_status(spoofer_stats);
 }
 
 void Rtklib_Pvt::clear_ephemeris()

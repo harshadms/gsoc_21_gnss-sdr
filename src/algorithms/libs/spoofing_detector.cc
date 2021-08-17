@@ -117,7 +117,7 @@ void SpoofingDetector::check_PVT_consistency()
 
     if (check_position_jump())
         {
-            d_score.position_jump_score = 2;
+            d_score.position_jump_score = 1;
         }
 
     check_velocity_consistency();
@@ -298,7 +298,7 @@ void SpoofingDetector::check_time()
 }
 
 // Clock offset
-void SpoofingDetector::check_clock_offset(double clk_offset, double clk_drift)
+bool SpoofingDetector::check_clock_offset(double clk_offset, double clk_drift)
 {
     ClockOffset offset;
     offset.offset = clk_offset * 1e9;
@@ -359,15 +359,16 @@ void SpoofingDetector::check_clock_offset(double clk_offset, double clk_drift)
             if (avg_error > d_clk_offset_error)
                 {
                     spoofing_flag = true;
-                    //DLOG(INFO) << "CLK_OFFSET: Spoofing detected at " << SpoofingDetector::CurrentTime_nanoseconds() << " ns  Recv offset: " << clk_offset * 1e9 << " - projected: " << offset_propd << " - error: " << offsetError;
+                    DLOG(INFO) << "CLK_OFFSET: Spoofing detected at " << SpoofingDetector::CurrentTime_nanoseconds() << " ns  Recv offset: " << clk_offset * 1e9 << " - projected: " << offset_propd << " - error: " << offsetError;
                 }
         }
 
     DLOG(INFO) << "CLK_OFFSET: Recv offset: " << clk_offset * 1e9 << " - projected: " << offset_propd << " - error: " << offsetError << " - time: " << SpoofingDetector::CurrentTime_nanoseconds() << " flag: - " << spoofing_flag;
+    return spoofing_flag;
 }
 
 // Clock jump
-void SpoofingDetector::check_RX_clock()
+bool SpoofingDetector::check_RX_clock()
 {
     if (d_first_record)
         {
@@ -375,13 +376,13 @@ void SpoofingDetector::check_RX_clock()
             set_old_clock();
             set_lkg_clock(false);
             d_first_record = false;
-            return;
+            return false;
         }
 
-    check_clock_jump();
+    return check_clock_jump();
 }
 
-void SpoofingDetector::check_clock_jump()
+bool SpoofingDetector::check_clock_jump()
 {
     double sample_diff = d_new_clock.sample_counter - d_lkg_clock.sample_counter;
     double sample_diff_time = (sample_diff * 1000) / d_gnss_synchro->fs;
@@ -396,12 +397,12 @@ void SpoofingDetector::check_clock_jump()
             d_gnss_synchro->Clock_jump = time_diff;
             set_old_clock();
             set_lkg_clock(true);
-            return;
+            return true;
         }
 
     set_old_clock();
     set_lkg_clock(false);
-    return;
+    return false;
 }
 
 void SpoofingDetector::update_clock_info(uint64_t sample_counter, uint32_t tow, uint32_t wn)
@@ -518,7 +519,6 @@ void SpoofingDetector::reset_pos_jump_check()
 
     d_score.position_jump_score = 0;
     d_spoofer_score = d_score.total_score();
-
     d_update_lkgl = true;
 }
 

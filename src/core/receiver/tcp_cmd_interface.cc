@@ -183,12 +183,21 @@ std::string TcpCmdInterface::spoofer_status(const std::vector<std::string> &comm
     std::stringstream str_stream;
     PvtChecksScore spoofer_stats;
 
-    PVT_sptr_->get_spoofer_status(&spoofer_stats);
+    std::stringstream apt_str_stream;
+    std::stringstream amp_str_stream;
 
-    str_stream << "============== Spoofing Detection Report - BEGIN ==============\n";
+    if (!PVT_sptr_->get_spoofer_status(&spoofer_stats))
+        {
+            str_stream << "Spoofing detection disabled\n";
+            return str_stream.str();
+        }
+
+    str_stream << "\n============== Spoofing Detection Report - BEGIN ==============\n\n";
     int nchannels = spoofer_stats.amp_results.size();
 
-    str_stream << "Auxiliary Peak Tracking: ";
+    apt_str_stream << "Auxiliary Peak Tracking: ";
+    amp_str_stream << "Overshadow Attack: ";
+
     int aux_count = 0;
     int amp_count = 0;
 
@@ -196,40 +205,38 @@ std::string TcpCmdInterface::spoofer_status(const std::vector<std::string> &comm
         {
             if (spoofer_stats.aux_peak_score[i] > 0)
                 {
-                    str_stream << "\nChannel: " << i << " separation: " << spoofer_stats.aux_peak_score[i];
+                    apt_str_stream << "\n   - PRN: " << spoofer_stats.channel_prn_map[i] << " separation: " << spoofer_stats.aux_peak_score[i] << " ns";
                     aux_count++;
+                }
+            if (spoofer_stats.amp_results[i])
+                {
+                    amp_str_stream << "\n   - PRN: " << spoofer_stats.channel_prn_map[i] << " overshadow attack: DETECTED";
+                    amp_count++;
                 }
         }
 
     if (aux_count == 0)
         {
-            str_stream << "SPOOFING NOT DETECTED\n";
+            apt_str_stream << "SPOOFING NOT DETECTED\n";
         }
     else
         {
-            str_stream << "\nAuxiliary peaks detected in " << aux_count << " channels\n";
-        }
-    str_stream << "Overshadow Attack: ";
-    for (auto i = 0; i < nchannels; i++)
-        {
-            if (spoofer_stats.amp_results[i])
-                {
-                    str_stream << "\nChannel: " << i << " overshadow attack: DETECTED";
-                    amp_count++;
-                }
+            apt_str_stream << "\nAuxiliary peaks detected in " << aux_count << " channels\n";
         }
 
     if (amp_count == 0)
         {
-            str_stream << "SPOOFING NOT DETECTED\n";
+            amp_str_stream << "SPOOFING NOT DETECTED\n";
         }
     else
         {
-            str_stream << "\nOvershadow attack detected on " << aux_count << " channels\n";
+            amp_str_stream << "\nOvershadow attack detected on " << aux_count << " channels\n";
         }
 
+    str_stream << apt_str_stream.rdbuf();
+    str_stream << amp_str_stream.rdbuf();
     //str_stream << "Spoofer status: Static position check: " << spoofer_stats.static_pos_check_score << "\n";
-    str_stream << "============== Spoofing Detection Report - END ==============\n";
+    str_stream << "\n============== Spoofing Detection Report - END ==============\n";
     return str_stream.str();
 }
 

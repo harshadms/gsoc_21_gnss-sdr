@@ -1449,6 +1449,7 @@ void dll_pll_veml_tracking::log_data()
                     // PRN
                     uint32_t prn_ = d_acquisition_gnss_synchro->PRN;
                     d_dump_file.write(reinterpret_cast<char *>(&prn_), sizeof(uint32_t));
+                    DLOG(INFO) << "DBG:" << d_channel << "," << d_rem_code_phase_samples << "," << d_sample_counter;
                 }
             catch (const std::ifstream::failure &e)
                 {

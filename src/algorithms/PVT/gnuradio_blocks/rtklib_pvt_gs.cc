@@ -150,8 +150,9 @@ rtklib_pvt_gs::rtklib_pvt_gs(uint32_t nchannels,
 
             for (uint32_t i = 0; i < nchannels; i++)
                 {
-                    d_spoofing_detector.d_score.amp_results.insert(i, false);
-                    d_spoofing_detector.d_score.aux_peak_score.insert(i, 0);
+                    d_spoofing_detector.d_score.amp_results.push_back(false);
+                    d_spoofing_detector.d_score.aux_peak_score.push_back(0);
+                    d_channel_prn_map.insert(std::pair<int, int>(i, i));
                 }
 
             DLOG(INFO) << "TSTAMP:" << d_spoofing_detector.CurrentTime_nanoseconds();
@@ -1698,9 +1699,17 @@ bool rtklib_pvt_gs::get_latest_PVT(double* longitude_deg,
     return false;
 }
 
-void rtklib_pvt_gs::get_spoofer_status(PvtChecksScore* spoofer_stats)
+bool rtklib_pvt_gs::get_spoofer_status(PvtChecksScore* spoofer_stats)
 {
-    *spoofer_stats = d_spoofing_detector.d_score;
+    if (d_enable_security_checks)
+        {
+            *spoofer_stats = d_spoofing_detector.d_score;
+            return true;
+        }
+    else
+        {
+            return false;
+        }
 }
 
 void rtklib_pvt_gs::apply_rx_clock_offset(std::map<int, Gnss_Synchro>& observables_map,
@@ -1888,6 +1897,7 @@ int rtklib_pvt_gs::work(int noutput_items, gr_vector_const_void_star& input_item
                 {
                     if (in[i][epoch].Flag_valid_pseudorange)
                         {
+                            d_channel_prn_map[i] = in[i][epoch].PRN;
                             d_spoofing_detector.d_score.amp_results[i] = in[i][epoch].Prompt_corr_detection;
                             if (d_enable_apt)
                                 {
@@ -2036,6 +2046,8 @@ int rtklib_pvt_gs::work(int noutput_items, gr_vector_const_void_star& input_item
                         {
                             d_channel_initialized.at(i) = false;  // the current channel is not reporting valid observable
                         }
+
+                    d_spoofing_detector.d_score.channel_prn_map = d_channel_prn_map;
                 }
 
             // ############ 2 COMPUTE THE PVT ################################

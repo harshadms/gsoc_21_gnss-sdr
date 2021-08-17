@@ -35,9 +35,12 @@ struct PvtChecksScore
     int position_jump_score = 0;
     double velocity_check_score = 0;
     int static_pos_check_score = 0;
+    bool clk_offset = false;
+    int cno = 0;
 
-    std::map<int, bool> amp_results;
-    std::map<int, int> aux_peak_score;
+    std::vector<bool> amp_results;
+    std::vector<int> aux_peak_score;
+    std::map<int, int> channel_prn_map;
 
     double abnormal_position_score = 0;
 

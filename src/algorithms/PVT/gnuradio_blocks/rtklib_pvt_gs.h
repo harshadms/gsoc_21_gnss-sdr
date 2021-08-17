@@ -129,7 +129,7 @@ public:
     /*!
      * \brief Get the latest SpoofingDetector stats
      */
-    void get_spoofer_status(PvtChecksScore* spoofer_stats);
+    bool get_spoofer_status(PvtChecksScore* spoofer_stats);
 
     /*!
      * \brief Set message queue to enable spoofing detector to stop tracking
@@ -295,7 +295,8 @@ private:
 
     bool d_print_score;
     std::string COLOR;
-
+    // for spoofer status
+    std::map<int, int> d_channel_prn_map;
     SpoofingDetector d_spoofing_detector;
 };
 
