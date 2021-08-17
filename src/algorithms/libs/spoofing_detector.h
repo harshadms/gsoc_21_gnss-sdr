@@ -40,6 +40,8 @@ struct PvtChecksScore
 
     std::vector<bool> amp_results;
     std::vector<int> aux_peak_score;
+    std::vector<double> clk_jump;
+
     std::map<int, int> channel_prn_map;
 
     double abnormal_position_score = 0;
@@ -92,9 +94,9 @@ public:
     // ####### Structure to store position solution
     struct PvtSol
     {
-        double ecef_y;
-        double ecef_x;
-        double ecef_z;
+        double lat;
+        double lon;
+        double alt;
 
         double vel_x;
         double vel_y;
@@ -117,8 +119,8 @@ public:
     std::shared_ptr<Concurrent_Queue<pmt::pmt_t>> control_queue_;
 
     // ####### PVT Consistency functions
-    void update_pvt(const std::array<double, 3>& pos,
-        const std::array<double, 3>& vel,
+    void update_pvt(double lat, double lon, double alt,
+        double vel_x, double vel_y, double vel_z,
         double speed_over_ground, double heading,
         uint32_t tstamp, boost::posix_time::ptime utc_time);
 
@@ -127,7 +129,7 @@ public:
 
 
     // ####### Clock offset variance and drift
-    void check_clock_offset(double clk_offset, double clk_drift);
+    bool check_clock_offset(double clk_offset, double clk_drift);
 
     // ####### Clock jumps
     struct Clock
@@ -137,7 +139,7 @@ public:
         uint32_t wn;
     };
 
-    void check_RX_clock();
+    double check_RX_clock();
     void check_ephemeris();
 
     void update_clock_info(uint64_t sample_counter, uint32_t tow, uint32_t wn);
@@ -154,7 +156,7 @@ public:
     Clock d_lkg_clock;
 
     void check_TOW_jump();
-    void check_clock_jump();
+    double check_clock_jump();
 
     void set_old_clock();
     void set_lkg_clock(bool set_old);
@@ -228,6 +230,7 @@ public:
     void reset_pos_jump_check();
 
     long double calculate_distance_ECEF(const PvtSol* sol1, const PvtSol* sol2);
+    long double calculate_distance(const PvtSol* sol1, const PvtSol* sol2);
 
     long double to_radians(double degree);
     int get_spoofer_score();
@@ -235,42 +238,7 @@ public:
     boost::posix_time::ptime d_pvt_epoch;
 };
 
-// // Collection of telemetry consistency checks
-// class TLMConsistencyChecks
-// {
-// public:
-//     // Store RX clock info
 
-
-//     TLMConsistencyChecks();
-//     TLMConsistencyChecks(const TLMConsistencyChecksConf* conf_);
-
-//     void check_RX_clock();
-//     void check_ephemeris();
-
-//     void update_clock_info(uint64_t sample_counter, uint32_t tow, uint32_t wn);
-//     void update_eph_info();
-
-//     uint32_t PRN;
-//     uint32_t channel_id;
-
-//     Gnss_Synchro d_gnss_synchro;
-
-// private:
-//     bool d_first_record;
-//     bool d_check_TOW;
-//     bool d_check_RX_clock;
-
-//     Clock d_old_clock;
-//     Clock d_new_clock;
-//     Clock d_lkg_clock;
-
-//     void check_TOW_jump();
-//     void check_clock_jump();
-
-//     void set_old_clock();
-//     void set_lkg_clock(bool set_old);
-// };
 #endif
 #endif
 

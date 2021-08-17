@@ -152,6 +152,8 @@ rtklib_pvt_gs::rtklib_pvt_gs(uint32_t nchannels,
                 {
                     d_spoofing_detector.d_score.amp_results.push_back(false);
                     d_spoofing_detector.d_score.aux_peak_score.push_back(0);
+                    d_spoofing_detector.d_score.clk_jump.push_back(0);
+
                     d_channel_prn_map.insert(std::pair<int, int>(i, i));
                 }
 
@@ -1899,6 +1901,8 @@ int rtklib_pvt_gs::work(int noutput_items, gr_vector_const_void_star& input_item
                         {
                             d_channel_prn_map[i] = in[i][epoch].PRN;
                             d_spoofing_detector.d_score.amp_results[i] = in[i][epoch].Prompt_corr_detection;
+                            d_spoofing_detector.d_score.clk_jump[i] = in[i][epoch].Clock_jump;
+
                             if (d_enable_apt)
                                 {
                                     if (!in[i][epoch].Flag_Primary_Channel)
@@ -2136,8 +2140,13 @@ int rtklib_pvt_gs::work(int noutput_items, gr_vector_const_void_star& input_item
                             // Position check is enabled
                             if (d_enable_security_checks)
                                 {
-                                    d_spoofing_detector.update_pvt(d_user_pvt_solver->get_rx_pos(),
-                                        d_user_pvt_solver->get_rx_vel(),
+                                    d_spoofing_detector.update_pvt(
+                                        d_user_pvt_solver->get_latitude(),
+                                        d_user_pvt_solver->get_longitude(),
+                                        d_user_pvt_solver->get_height(),
+                                        d_user_pvt_solver->get_rx_vel()[0],
+                                        d_user_pvt_solver->get_rx_vel()[1],
+                                        d_user_pvt_solver->get_rx_vel()[2],
                                         d_user_pvt_solver->get_speed_over_ground(),
                                         d_user_pvt_solver->get_course_over_ground(),
                                         current_RX_time_ms,

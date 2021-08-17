@@ -63,9 +63,9 @@ SpoofingDetector::SpoofingDetector(const SpoofingDetectorConfig* conf_)
     d_pos_error_threshold = conf_->pos_error_threshold;
 
     // Set predetermined location
-    d_static_pvt.ecef_y = conf_->static_lat;
-    d_static_pvt.ecef_x = conf_->static_lon;
-    d_static_pvt.ecef_z = conf_->static_alt;
+    d_static_pvt.lat = conf_->static_lat;
+    d_static_pvt.lon = conf_->static_lon;
+    d_static_pvt.alt = conf_->static_alt;
 
     d_dump_pvt_checks_results = conf_->dump_pvt_checks_results;
     d_position_check = conf_->position_check;
@@ -101,24 +101,16 @@ void SpoofingDetector::check_PVT_consistency()
         {
             if (validate_location_proximity(&d_new_pvt, &d_static_pvt, 1))
                 {
-                    if (d_score.static_pos_check_score == 1)
+                    if (d_score.static_pos_check_score > 0)
                         {
                             DLOG(INFO) << "STATIC_POS: Received location within geo-fence, resetting static position score";
                         }
 
                     d_score.static_pos_check_score = 0;
                 }
-            else
-                {
-                    d_score.static_pos_check_score = 1;
-                    d_spoofer_score = d_score.total_score();
-                }
         }
 
-    if (check_position_jump())
-        {
-            d_score.position_jump_score = 1;
-        }
+    check_position_jump();
 
     check_velocity_consistency();
 
@@ -130,7 +122,7 @@ void SpoofingDetector::check_PVT_consistency()
         {
             d_first_record = false;
         }
-
+    update_old_pvt();
     d_spoofer_score = d_score.total_score();
 }
 
@@ -139,8 +131,8 @@ void SpoofingDetector::abnormal_position_checks()
     // A collection of model based position abnormalities check Min/Max altitude and speed
     d_score.abnormal_position_score = 0;
 
-    //if (d_new_pvt.ecef_z < d_min_altitude) d_score.abnormal_position_score += 0.25;
-    //if (d_new_pvt.ecef_z > d_max_altitude) d_score.abnormal_position_score += 0.25;
+    //if (d_new_pvt.alt < d_min_altitude) d_score.abnormal_position_score += 0.25;
+    //if (d_new_pvt.alt > d_max_altitude) d_score.abnormal_position_score += 0.25;
     if (d_new_pvt.speed_over_ground < d_min_ground_speed) d_score.abnormal_position_score += 0.25;
     if (d_new_pvt.speed_over_ground > d_max_ground_speed) d_score.abnormal_position_score += 0.25;
 
@@ -158,27 +150,45 @@ void SpoofingDetector::check_velocity_consistency()
         }
     d_score.velocity_check_score = d_velocity_error / d_checked_velocity_pairs;
     DLOG(INFO) << "VELOCITY_COMPARE: Confidence " << d_velocity_error << "/" << d_checked_velocity_pairs;
-    update_old_pvt();
 }
 
 bool SpoofingDetector::validate_location_proximity(const PvtSol* pvtsol1, const PvtSol* pvtsol2, int test_id)
 {
-    long double distance = calculate_distance_ECEF(pvtsol1, pvtsol2);
+    long double distance = calculate_distance(pvtsol1, pvtsol2);
 
     switch (test_id)
         {
         case 1:  // Validate location's proximity to the configured static location
             {
-                DLOG(INFO) << "STATIC_POS: static_coords (" << pvtsol1->ecef_y << "," << pvtsol1->ecef_x << ") received (" << pvtsol2->ecef_y << "," << pvtsol2->ecef_x << ") Distance: " << distance;
-                return distance < d_geo_fence_radius;
+                DLOG(INFO) << "STATIC_POS: static_coords (" << pvtsol1->lat << "," << pvtsol1->lon << ") received (" << pvtsol2->lat << "," << pvtsol2->lon << ") Distance: " << distance;
+
+                if (distance < d_geo_fence_radius)
+                    {
+                        d_score.static_pos_check_score = 0;
+                        return true;
+                    }
+                else
+                    {
+                        d_score.static_pos_check_score = distance;
+                        return false;
+                    }
             }
         case 2:  // Compare the distance between the old and the new solutions with configured max jump distance
             {
-                DLOG(INFO) << "POS_JUMP: Old (" << pvtsol1->ecef_y << "," << pvtsol1->ecef_x << ") received ("
-                           << pvtsol2->ecef_y << "," << pvtsol2->ecef_x << ") Distance: "
-                           << distance << " Spoofer score: " << get_spoofer_score();
+                DLOG(INFO) << "POS_JUMP: Old (" << pvtsol1->lat << "," << pvtsol1->lon << ") received ("
+                           << pvtsol2->lat << "," << pvtsol2->lon << ") Distance: "
+                           << distance << " Spoofer score: " << d_score.position_jump_score;
 
-                return distance < d_max_jump_distance;
+                if (distance < d_max_jump_distance)
+                    {
+                        d_score.position_jump_score = 0;
+                        return true;
+                    }
+                else
+                    {
+                        d_score.position_jump_score = distance;
+                        return false;
+                    }
             }
 
         case 3:  // Check if the calculated solution is in the proximity of the lkg solution
@@ -204,61 +214,56 @@ bool SpoofingDetector::check_position_jump()
                 {
                     // Set last known good location to current coordinates
                     update_lkg_pvt(false);  // Set old = false, hence set new location as lkg
-                    DLOG(INFO) << "POS_JUMP: location update: " << d_new_pvt.ecef_y << ", " << d_new_pvt.ecef_x << ", " << d_new_pvt.ecef_z;
+                    DLOG(INFO) << "POS_JUMP: location update: " << d_new_pvt.lat << ", " << d_new_pvt.lon << ", " << d_new_pvt.alt;
                 }
 
             d_first_record = false;
             return false;
         }
 
-
-    if (!validate_location_proximity(&d_old_pvt, &d_new_pvt, 2))
+    if (d_score.position_jump_score > 0)
         {
             if (validate_location_proximity(&d_lkg_pvt, &d_new_pvt, 3))
                 {
                     // Reset jump check when the receiver is back to the last known good location
                     reset_pos_jump_check();
                 }
-            else
-                {
-                    // A naive way of checking if the jump is legitimate jump or is caused by spoofing.
-                    // (A legitimate jump will occur if the receiver looses lock and re-acquires it)
-                    //uint32_t dt = d_new_pvt.tstamp - d_lkg_pvt.tstamp;
-
-                    if (!check_propagated_pos())
-                        {
-                            is_spoofing = true;
-                        }
-
-                    if (is_spoofing)
-                        {
-                            DLOG(INFO) << "POS_JUMP: Spoofer score: " << d_spoofer_score;
-
-                            // Set last known good location to old coordinates
-                            if (d_update_lkgl)
-                                {
-                                    update_lkg_pvt(true);  // Set old = true, hence set old location as lkg
-                                    d_update_lkgl = false;
-                                }
-                            return true;
-                        }
-                }
         }
     else
         {
-            if (d_score.position_jump_score == 2)
+            if (!validate_location_proximity(&d_old_pvt, &d_new_pvt, 2))
                 {
                     if (validate_location_proximity(&d_lkg_pvt, &d_new_pvt, 3))
                         {
                             // Reset jump check when the receiver is back to the last known good location
                             reset_pos_jump_check();
-                            DLOG(INFO) << "POS_JUMP: Received location within geo-fence, resetting static position score";
+                        }
+                    else
+                        {
+                            // A naive way of checking if the jump is legitimate jump or is caused by spoofing.
+                            // (A legitimate jump will occur if the receiver looses lock and re-acquires it)
+                            //uint32_t dt = d_new_pvt.tstamp - d_lkg_pvt.tstamp;
+
+                            if (!check_propagated_pos())
+                                {
+                                    is_spoofing = true;
+                                }
+
+                            if (is_spoofing)
+                                {
+                                    DLOG(INFO) << "POS_JUMP: Spoofer score: " << d_score.position_jump_score;
+
+                                    // Set last known good location to old coordinates
+                                    if (d_update_lkgl)
+                                        {
+                                            update_lkg_pvt(true);  // Set old = true, hence set old location as lkg
+                                            d_update_lkgl = false;
+                                        }
+                                    return true;
+                                }
                         }
                 }
-            else
-                {
-                    update_lkg_pvt(false);
-                }
+            update_lkg_pvt(false);
         }
 
     return false;
@@ -270,14 +275,19 @@ bool SpoofingDetector::check_propagated_pos()
     PvtSol temp_pvt;
     double dt = (d_new_pvt.tstamp - d_old_pvt.tstamp) / 1000;
 
-    temp_pvt.ecef_y = d_old_pvt.ecef_y + d_old_pvt.vel_x * dt;  // / metersPerRadLat;
-    temp_pvt.ecef_x = d_old_pvt.ecef_x + d_old_pvt.vel_y * dt;  // / metersPerRadLon;
-    temp_pvt.ecef_z = d_old_pvt.ecef_z + d_old_pvt.vel_z * dt;
+    double metersPerDegLat = 111111.0;
+    double metersPerRadLat = metersPerDegLat * 180 / M_PI;
+    double metersPerDegLon = metersPerDegLat * cos(d_old_pvt.lat);
+    double metersPerRadLon = metersPerDegLon * 180 / M_PI;
 
-    double distance_error = calculate_distance_ECEF(&temp_pvt, &d_new_pvt);
+    temp_pvt.lat = d_old_pvt.lat + d_old_pvt.vel_y * dt / metersPerRadLat;
+    temp_pvt.lon = d_old_pvt.lon + d_old_pvt.vel_x * dt / metersPerRadLon;
+    temp_pvt.alt = d_old_pvt.alt + d_old_pvt.vel_z * dt;
 
-    DLOG(INFO) << "PROPAGATE_POS: Pro " << temp_pvt.ecef_y << "," << temp_pvt.ecef_x << ", " << temp_pvt.ecef_z;
-    DLOG(INFO) << "PROPAGATE_POS: Recv " << d_new_pvt.ecef_y << "," << d_new_pvt.ecef_x << ", " << d_new_pvt.ecef_z;
+    double distance_error = calculate_distance(&temp_pvt, &d_new_pvt);
+
+    DLOG(INFO) << "PROPAGATE_POS: Pro " << temp_pvt.lat << "," << temp_pvt.lon << ", " << temp_pvt.alt;
+    DLOG(INFO) << "PROPAGATE_POS: Recv " << d_new_pvt.lat << "," << d_new_pvt.lon << ", " << d_new_pvt.alt;
     DLOG(INFO) << "PROPAGATE_POS: Error: " << distance_error;
 
     return validate_location_proximity(&temp_pvt, &d_new_pvt, 3);
@@ -311,7 +321,7 @@ bool SpoofingDetector::check_clock_offset(double clk_offset, double clk_drift)
     if (d_clock_offsets_vector.size() < d_clk_offset_vector_size)
         {
             d_clock_offsets_vector.push_back(offset);
-            return;
+            return false;
         }
 
     if (d_clock_offsets_vector.size() > d_clk_offset_vector_size)
@@ -368,7 +378,7 @@ bool SpoofingDetector::check_clock_offset(double clk_offset, double clk_drift)
 }
 
 // Clock jump
-bool SpoofingDetector::check_RX_clock()
+double SpoofingDetector::check_RX_clock()
 {
     if (d_first_record)
         {
@@ -382,7 +392,7 @@ bool SpoofingDetector::check_RX_clock()
     return check_clock_jump();
 }
 
-bool SpoofingDetector::check_clock_jump()
+double SpoofingDetector::check_clock_jump()
 {
     double sample_diff = d_new_clock.sample_counter - d_lkg_clock.sample_counter;
     double sample_diff_time = (sample_diff * 1000) / d_gnss_synchro->fs;
@@ -397,12 +407,12 @@ bool SpoofingDetector::check_clock_jump()
             d_gnss_synchro->Clock_jump = time_diff;
             set_old_clock();
             set_lkg_clock(true);
-            return true;
+            return time_diff;
         }
 
     set_old_clock();
     set_lkg_clock(false);
-    return false;
+    return 0;
 }
 
 void SpoofingDetector::update_clock_info(uint64_t sample_counter, uint32_t tow, uint32_t wn)
@@ -439,35 +449,36 @@ void SpoofingDetector::set_lkg_clock(bool set_old)
 }
 
 // ####### General functions
-void SpoofingDetector::update_pvt(const std::array<double, 3>& pos,
-    const std::array<double, 3>& vel,
+void SpoofingDetector::update_pvt(double lat, double lon, double alt,
+    double vel_x, double vel_y, double vel_z,
     double speed_over_ground, double heading,
     uint32_t tstamp, boost::posix_time::ptime utc_time)
 {
-    d_new_pvt.ecef_y = pos[1];
-    d_new_pvt.ecef_x = pos[0];
-    d_new_pvt.ecef_z = pos[2];
+    d_new_pvt.lat = lat;
+    d_new_pvt.lon = lon;
+    d_new_pvt.alt = alt;
 
-    d_new_pvt.vel_x = vel[0];
-    d_new_pvt.vel_y = vel[1];
-    d_new_pvt.vel_z = vel[2];
+    d_new_pvt.vel_x = vel_x;
+    d_new_pvt.vel_y = vel_y;
+    d_new_pvt.vel_z = vel_z;
 
-    d_new_pvt.speed_over_ground = sqrt(pow(vel[0], 2) + pow(vel[1], 2) + pow(vel[1], 2));
-    d_new_pvt.heading = 180 + 180 / M_PI * (atan2(-vel[0], -vel[2]));
+    d_new_pvt.speed_over_ground = speed_over_ground;
+    d_new_pvt.heading = heading;
+
     d_new_pvt.tstamp = tstamp;
     d_new_pvt.utc_time = utc_time;
 
     DLOG(INFO)
-        << "New PVT: " << pos[1] << ", " << pos[0] << ", " << pos[2]
-        << ", " << vel[0] << ", " << vel[1] << ", " << vel[2]
+        << "New PVT: " << lat << ", " << lon << ", " << alt
+        << ", " << vel_x << ", " << vel_y << ", " << vel_z
         << ", " << speed_over_ground << ", " << heading << ", " << tstamp;
 }
 
 void SpoofingDetector::update_old_pvt()
 {
-    d_old_pvt.ecef_y = d_new_pvt.ecef_y;
-    d_old_pvt.ecef_x = d_new_pvt.ecef_x;
-    d_old_pvt.ecef_z = d_new_pvt.ecef_z;
+    d_old_pvt.lat = d_new_pvt.lat;
+    d_old_pvt.lon = d_new_pvt.lon;
+    d_old_pvt.alt = d_new_pvt.alt;
     d_old_pvt.vel_x = d_new_pvt.vel_x;
     d_old_pvt.vel_y = d_new_pvt.vel_y;
     d_old_pvt.vel_z = d_new_pvt.vel_z;
@@ -476,16 +487,16 @@ void SpoofingDetector::update_old_pvt()
     d_old_pvt.tstamp = d_new_pvt.tstamp;
     d_old_pvt.utc_time = d_new_pvt.utc_time;
 
-    DLOG(INFO) << "Old pvt updated to: " << d_old_pvt.ecef_y << ", " << d_old_pvt.ecef_x << ", " << d_old_pvt.ecef_z;
+    DLOG(INFO) << "Old pvt updated to: " << d_old_pvt.lat << ", " << d_old_pvt.lon << ", " << d_old_pvt.alt;
 }
 
 void SpoofingDetector::update_lkg_pvt(bool set_old)
 {
     if (set_old)
         {
-            d_lkg_pvt.ecef_y = d_old_pvt.ecef_y;
-            d_lkg_pvt.ecef_x = d_old_pvt.ecef_x;
-            d_lkg_pvt.ecef_z = d_old_pvt.ecef_z;
+            d_lkg_pvt.lat = d_old_pvt.lat;
+            d_lkg_pvt.lon = d_old_pvt.lon;
+            d_lkg_pvt.alt = d_old_pvt.alt;
             d_lkg_pvt.vel_x = d_old_pvt.vel_x;
             d_lkg_pvt.vel_y = d_old_pvt.vel_y;
             d_lkg_pvt.vel_z = d_old_pvt.vel_z;
@@ -496,9 +507,9 @@ void SpoofingDetector::update_lkg_pvt(bool set_old)
         }
     else
         {
-            d_lkg_pvt.ecef_y = d_new_pvt.ecef_y;
-            d_lkg_pvt.ecef_x = d_new_pvt.ecef_x;
-            d_lkg_pvt.ecef_z = d_new_pvt.ecef_z;
+            d_lkg_pvt.lat = d_new_pvt.lat;
+            d_lkg_pvt.lon = d_new_pvt.lon;
+            d_lkg_pvt.alt = d_new_pvt.alt;
             d_lkg_pvt.vel_x = d_new_pvt.vel_x;
             d_lkg_pvt.vel_y = d_new_pvt.vel_y;
             d_lkg_pvt.vel_z = d_new_pvt.vel_z;
@@ -509,7 +520,7 @@ void SpoofingDetector::update_lkg_pvt(bool set_old)
         }
 
 
-    DLOG(INFO) << "LKG updated to: " << d_lkg_pvt.ecef_y << ", " << d_lkg_pvt.ecef_x << ", " << d_lkg_pvt.ecef_z;
+    DLOG(INFO) << "LKG updated to: " << d_lkg_pvt.lat << ", " << d_lkg_pvt.lon << ", " << d_lkg_pvt.alt;
 }
 
 void SpoofingDetector::reset_pos_jump_check()
@@ -520,6 +531,8 @@ void SpoofingDetector::reset_pos_jump_check()
     d_score.position_jump_score = 0;
     d_spoofer_score = d_score.total_score();
     d_update_lkgl = true;
+
+    DLOG(INFO) << "POS_JUMP: Received location within geo-fence, resetting static position score";
 }
 
 int SpoofingDetector::get_spoofer_score()
@@ -538,7 +551,33 @@ long double SpoofingDetector::to_radians(double degree)
 
 long double SpoofingDetector::calculate_distance_ECEF(const PvtSol* pvtsol1, const PvtSol* pvtsol2)
 {
-    return sqrt(pow((pvtsol1->ecef_x - pvtsol2->ecef_x), 2) + pow((pvtsol1->ecef_y - pvtsol2->ecef_y), 2) + pow((pvtsol1->ecef_z - pvtsol2->ecef_z), 2));
+    return sqrt(pow((pvtsol1->lon - pvtsol2->lon), 2) + pow((pvtsol1->lat - pvtsol2->lat), 2) + pow((pvtsol1->alt - pvtsol2->alt), 2));
+}
+
+long double SpoofingDetector::calculate_distance(const PvtSol* pvtsol1, const PvtSol* pvtsol2)
+{
+    // Calculate distance between l1 and l2 using Haversine formula
+    long double lat1 = to_radians(pvtsol1->lat);
+    long double lon1 = to_radians(pvtsol1->lon);
+
+    long double lat2 = to_radians(pvtsol2->lat);
+    long double lon2 = to_radians(pvtsol2->lon);
+
+    // Haversine Formula
+    long double dlong = lon2 - lon1;
+    long double dlat = lat2 - lat1;
+
+    long double distance = pow(sin(dlat / 2), 2) +
+                           cos(lat1) * cos(lat2) *
+                               pow(sin(dlong / 2), 2);
+
+    distance = 2 * asin(sqrt(distance));
+
+    long double R = 6371000;
+
+    // Calculate the result
+    distance = distance * R;
+    return distance;
 }
 
 void SpoofingDetector::set_msg_queue(std::shared_ptr<Concurrent_Queue<pmt::pmt_t>> control_queue)
