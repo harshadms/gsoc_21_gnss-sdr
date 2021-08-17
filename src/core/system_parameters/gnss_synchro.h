@@ -86,7 +86,7 @@ public:
     // Spoofing detector
     bool Acquisition_detection{};  //!< Set by acquisition block
     bool Prompt_corr_detection{};  //!< Set by tracking block
-    int Clock_jump{};
+    double Clock_jump{};
 
     uint32_t Peak_to_track{};
 
