@@ -850,6 +850,8 @@ Rtklib_Pvt::Rtklib_Pvt(const ConfigurationInterface* configuration,
             spoofing_detection_config.static_alt = configuration->property("SecureGNSS.static_alt", 0.0);
             spoofing_detection_config.clk_offset_vector_size = configuration->property("SecureGNSS.clk_offset_vector_size", 1000);
             spoofing_detection_config.clk_offset_error = configuration->property("SecureGNSS.clk_offset_error", 20);
+            spoofing_detection_config.cno_threshold = configuration->property("SecureGNSS.cno_threshold", 1);
+
             pvt_output_parameters.security_parameters = spoofing_detection_config;
         }
 
@@ -884,7 +886,7 @@ bool Rtklib_Pvt::get_latest_PVT(double* longitude_deg,
         UTC_time);
 }
 
-bool Rtklib_Pvt::get_spoofer_status(PvtChecksScore* spoofer_stats)
+bool Rtklib_Pvt::get_spoofer_status(SpooferStatus* spoofer_stats)
 {
     return pvt_->get_spoofer_status(spoofer_stats);
 }

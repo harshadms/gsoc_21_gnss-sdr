@@ -1543,6 +1543,8 @@ void dll_pll_veml_tracking::log_data()
                     d_dump_file.write(reinterpret_cast<char *>(&d_spoofing_mark), sizeof(uint32_t));
 
                     ++d_prompt_I_count;
+
+                    DLOG(INFO) << "TRK_PLT_" << d_channel << ", " << d_spoofing_detector.CurrentTime_nanoseconds() << ", " << abs(prompt_I) / d_threshold << ", " << d_spoofing;
                 }
         }
 

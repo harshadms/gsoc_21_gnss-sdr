@@ -48,13 +48,8 @@ public:
     double static_lat;
     double static_lon;
     double static_alt;
+
+    double cno_threshold;
 };
 
-class TLMConsistencyChecksConf
-{
-public:
-    TLMConsistencyChecksConf();
-    bool check_TOW = false;
-    bool check_RX_clock = false;
-};
 #endif  // GNSS_SDR_PVT_CONF_H

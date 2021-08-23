@@ -181,7 +181,7 @@ std::string TcpCmdInterface::status(const std::vector<std::string> &commandLine 
 std::string TcpCmdInterface::spoofer_status(const std::vector<std::string> &commandLine __attribute__((unused)))
 {
     std::stringstream str_stream;
-    PvtChecksScore spoofer_stats;
+    SpooferStatus spoofer_stats;
 
     std::stringstream apt_str_stream;
     std::stringstream amp_str_stream;

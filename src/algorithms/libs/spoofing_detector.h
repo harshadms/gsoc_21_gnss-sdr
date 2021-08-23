@@ -30,7 +30,7 @@
 #include <map>
 #include <vector>
 
-struct PvtChecksScore
+struct SpooferStatus
 {
     int position_jump_score = 0;
     double velocity_check_score = 0;
@@ -82,6 +82,8 @@ public:
 
     bool check_TOW = false;
     bool check_RX_clock = false;
+
+    double cno_threshold;
 };
 // Collection of PVT consistency checks
 
@@ -90,7 +92,7 @@ class SpoofingDetector
 public:
     // ####### Structure to store assurance score - total score and individual scores
 
-    PvtChecksScore d_score;
+    SpooferStatus d_score;
     // ####### Structure to store position solution
     struct PvtSol
     {
@@ -127,6 +129,9 @@ public:
     void check_PVT_consistency();
     void dump_results(int check_id);
 
+    // ####### Clock offset variance and drift
+    double d_cno_threshold;
+    void check_CNO(std::vector<double> cno_vector);
 
     // ####### Clock offset variance and drift
     bool check_clock_offset(double clk_offset, double clk_drift);

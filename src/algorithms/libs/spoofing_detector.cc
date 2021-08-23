@@ -80,6 +80,8 @@ SpoofingDetector::SpoofingDetector(const SpoofingDetectorConfig* conf_)
     d_clk_offset_vector_size = conf_->clk_offset_vector_size;
     d_clk_offset_error = conf_->clk_offset_error;
 
+    d_cno_threshold = conf_->cno_threshold;
+
     d_spoofer_score = 0;
     d_checked_velocity_pairs = 0;  // Number of velocity measurements checked. Velocity measurements are processed in pairs (old and new)
 
@@ -175,7 +177,7 @@ bool SpoofingDetector::validate_location_proximity(const PvtSol* pvtsol1, const 
             }
         case 2:  // Compare the distance between the old and the new solutions with configured max jump distance
             {
-                DLOG(INFO) << "POS_JUMP: Old (" << pvtsol1->lat << "," << pvtsol1->lon << ") received ("
+                DLOG(INFO) << "POS_JUMP," << pvtsol1->lat << "," << pvtsol1->lon << ") received ("
                            << pvtsol2->lat << "," << pvtsol2->lon << ") Distance: "
                            << distance << " Spoofer score: " << d_score.position_jump_score;
 
@@ -369,11 +371,11 @@ bool SpoofingDetector::check_clock_offset(double clk_offset, double clk_drift)
             if (avg_error > d_clk_offset_error)
                 {
                     spoofing_flag = true;
+                    d_score.clk_offset = spoofing_flag;
                     DLOG(INFO) << "CLK_OFFSET: Spoofing detected at " << SpoofingDetector::CurrentTime_nanoseconds() << " ns  Recv offset: " << clk_offset * 1e9 << " - projected: " << offset_propd << " - error: " << offsetError;
                 }
         }
-
-    DLOG(INFO) << "CLK_OFFSET: Recv offset: " << clk_offset * 1e9 << " - projected: " << offset_propd << " - error: " << offsetError << " - time: " << SpoofingDetector::CurrentTime_nanoseconds() << " flag: - " << spoofing_flag;
+    DLOG(INFO) << "CLK_PLT," << SpoofingDetector::CurrentTime_nanoseconds() << "," << clk_offset * 1e9 << "," << offset_propd << "," << offsetError << "," << spoofing_flag;
     return spoofing_flag;
 }
 
@@ -392,6 +394,7 @@ double SpoofingDetector::check_RX_clock()
     return check_clock_jump();
 }
 
+
 double SpoofingDetector::check_clock_jump()
 {
     double sample_diff = d_new_clock.sample_counter - d_lkg_clock.sample_counter;
@@ -400,20 +403,22 @@ double SpoofingDetector::check_clock_jump()
     uint32_t tow_diff = d_new_clock.tow - d_lkg_clock.tow;
 
     uint32_t time_diff = abs(tow_diff - sample_diff_time);
+    bool flag = false;
 
     if (time_diff > 20)
         {
-            DLOG(INFO) << "TLM_CHECKS:  PRN " << d_gnss_synchro->PRN << " Sample diff - " << sample_diff_time << " TOW diff - " << tow_diff;
+            flag = true;
             d_gnss_synchro->Clock_jump = time_diff;
             set_old_clock();
             set_lkg_clock(true);
             return time_diff;
         }
-
+    DLOG(INFO) << "TLM_CHECKS_" << d_gnss_synchro->PRN << "," << sample_diff_time << "," << tow_diff << "," << flag;
     set_old_clock();
     set_lkg_clock(false);
     return 0;
 }
+
 
 void SpoofingDetector::update_clock_info(uint64_t sample_counter, uint32_t tow, uint32_t wn)
 {
@@ -423,12 +428,14 @@ void SpoofingDetector::update_clock_info(uint64_t sample_counter, uint32_t tow, 
     //DLOG(INFO) << "TLM_CHECKS: Received new clock info - Channel " << channel_id << " : PRN " << PRN << " = " << sample_counter << " " << tow;
 }
 
+
 void SpoofingDetector::set_old_clock()
 {
     d_old_clock.sample_counter = d_new_clock.sample_counter;
     d_old_clock.tow = d_new_clock.tow;
     d_old_clock.wn = d_new_clock.wn;
 }
+
 
 void SpoofingDetector::set_lkg_clock(bool set_old)
 {
@@ -447,6 +454,35 @@ void SpoofingDetector::set_lkg_clock(bool set_old)
 
     // Optional DLOG message
 }
+
+// CNO Check
+void SpoofingDetector::check_CNO(std::vector<double> cno_vector)
+{
+    double sum = 0.0;
+    double mean = 0.0;
+    double standardDeviation = 0.0;
+
+    int i;
+
+    for (i = 0; i < cno_vector.size(); ++i)
+        {
+            sum += cno_vector[i];
+        }
+
+    mean = sum / 10;
+
+    for (i = 0; i < cno_vector.size(); ++i)
+        standardDeviation += pow(cno_vector[i] - mean, 2);
+
+    standardDeviation = sqrt(standardDeviation / 10);
+
+    if (standardDeviation < d_cno_threshold)
+        {
+            DLOG(INFO) << "CNO_STD: STD Exceeds threshold - " << standardDeviation;
+            d_score.cno = standardDeviation;
+        }
+}
+
 
 // ####### General functions
 void SpoofingDetector::update_pvt(double lat, double lon, double alt,

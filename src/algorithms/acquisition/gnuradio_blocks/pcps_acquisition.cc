@@ -774,17 +774,9 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
                             volk_32f_x2_add_32f(d_magnitude_grid[doppler_index].data(), d_magnitude_grid[doppler_index].data(), d_tmp_buffer.data(), effective_fft_size);
                         }
                     // Record results to file if required
-                    if (d_dump)
+                    if (d_dump and d_channel == d_dump_channel)
                         {
-                            if (d_dump_channel == d_channel && d_dump_sv == 0)
-                                {
-                                    memcpy(d_narrow_grid.colptr(doppler_index), d_magnitude_grid[doppler_index].data(), sizeof(float) * effective_fft_size);
-                                }
-
-                            if (d_dump_sv == d_gnss_synchro->PRN)
-                                {
-                                    memcpy(d_narrow_grid.colptr(doppler_index), d_magnitude_grid[doppler_index].data(), sizeof(float) * effective_fft_size);
-                                }
+                            memcpy(d_grid.colptr(doppler_index), d_magnitude_grid[doppler_index].data(), sizeof(float) * effective_fft_size);
                         }
                 }
 
@@ -845,17 +837,9 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
                             volk_32f_x2_add_32f(d_magnitude_grid[doppler_index].data(), d_magnitude_grid[doppler_index].data(), d_tmp_buffer.data(), effective_fft_size);
                         }
                     // Record results to file if required
-                    if (d_dump)
+                    if (d_dump and d_channel == d_dump_channel)
                         {
-                            if (d_dump_channel == d_channel && d_dump_sv == 0)
-                                {
-                                    memcpy(d_narrow_grid.colptr(doppler_index), d_magnitude_grid[doppler_index].data(), sizeof(float) * effective_fft_size);
-                                }
-
-                            if (d_dump_sv == d_gnss_synchro->PRN)
-                                {
-                                    memcpy(d_narrow_grid.colptr(doppler_index), d_magnitude_grid[doppler_index].data(), sizeof(float) * effective_fft_size);
-                                }
+                            memcpy(d_narrow_grid.colptr(doppler_index), d_magnitude_grid[doppler_index].data(), sizeof(float) * effective_fft_size);
                         }
                 }
             // Compute the test statistic
@@ -997,21 +981,14 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
         {
             // Record results to file if required
 
-            if (d_dump)
+            if (d_dump and d_dump_channel == d_channel)
                 {
-                    if (d_dump_channel == d_channel && d_dump_sv == 0)
-                        {
-                            pcps_acquisition::dump_results(effective_fft_size);
-                        }
-
-                    if (d_dump_sv == d_gnss_synchro->PRN)
-                        {
-                            pcps_acquisition::dump_results(effective_fft_size);
-                        }
+                    pcps_acquisition::dump_results(effective_fft_size);
                 }
+
+            d_num_noncoherent_integrations_counter = 0U;
+            d_positive_acq = 0;
         }
-    d_num_noncoherent_integrations_counter = 0U;
-    d_positive_acq = 0;
 }
 
 // Called by gnuradio to enable drivers, etc for i/o devices.

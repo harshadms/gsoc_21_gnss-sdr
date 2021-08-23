@@ -67,7 +67,7 @@ public:
         double* course_over_ground_deg,
         time_t* UTC_time) = 0;
 
-    virtual bool get_spoofer_status(PvtChecksScore* spoofer_stats) = 0;
+    virtual bool get_spoofer_status(SpooferStatus* spoofer_stats) = 0;
 };
 
 

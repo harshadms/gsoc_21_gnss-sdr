@@ -1701,7 +1701,7 @@ bool rtklib_pvt_gs::get_latest_PVT(double* longitude_deg,
     return false;
 }
 
-bool rtklib_pvt_gs::get_spoofer_status(PvtChecksScore* spoofer_stats)
+bool rtklib_pvt_gs::get_spoofer_status(SpooferStatus* spoofer_stats)
 {
     if (d_enable_security_checks)
         {
@@ -1900,8 +1900,11 @@ int rtklib_pvt_gs::work(int noutput_items, gr_vector_const_void_star& input_item
                     if (in[i][epoch].Flag_valid_pseudorange)
                         {
                             d_channel_prn_map[i] = in[i][epoch].PRN;
-                            d_spoofing_detector.d_score.amp_results[i] = in[i][epoch].Prompt_corr_detection;
-                            d_spoofing_detector.d_score.clk_jump[i] = in[i][epoch].Clock_jump;
+                            if (in[i][epoch].Flag_Primary_Channel)
+                                {
+                                    d_spoofing_detector.d_score.amp_results[i] = in[i][epoch].Prompt_corr_detection;
+                                    d_spoofing_detector.d_score.clk_jump[i] = in[i][epoch].Clock_jump;
+                                }
 
                             if (d_enable_apt)
                                 {
@@ -2052,6 +2055,23 @@ int rtklib_pvt_gs::work(int noutput_items, gr_vector_const_void_star& input_item
                         }
 
                     d_spoofing_detector.d_score.channel_prn_map = d_channel_prn_map;
+                }
+
+            // Check CNO
+            if (d_enable_security_checks)
+                {
+                    std::vector<double> cno_vector;
+
+                    for (uint32_t i = 0; i < d_nchannels; i++)
+                        {
+                            if (in[i][epoch].Flag_Primary_Channel)
+                                {
+                                    cno_vector.push_back(in[i][epoch].CN0_dB_hz);
+                                }
+                        }
+
+                    d_spoofing_detector.check_CNO(cno_vector);
+                    cno_vector.clear();
                 }
 
             // ############ 2 COMPUTE THE PVT ################################

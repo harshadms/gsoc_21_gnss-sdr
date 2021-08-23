@@ -129,7 +129,7 @@ public:
     /*!
      * \brief Get the latest SpoofingDetector stats
      */
-    bool get_spoofer_status(PvtChecksScore* spoofer_stats);
+    bool get_spoofer_status(SpooferStatus* spoofer_stats);
 
     /*!
      * \brief Set message queue to enable spoofing detector to stop tracking
