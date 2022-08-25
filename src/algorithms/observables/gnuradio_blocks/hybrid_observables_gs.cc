@@ -116,6 +116,7 @@ hybrid_observables_gs::hybrid_observables_gs(const Obs_Conf &conf_) : gr::block(
                     d_dump = false;
                 }
         }
+    
     d_T_rx_TOW_ms = 0U;
     d_T_rx_step_ms = 20;  // read from config at the adapter GNSS-SDR.observable_interval_ms!!
     d_T_rx_TOW_set = false;

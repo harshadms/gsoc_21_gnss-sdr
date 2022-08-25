@@ -34,6 +34,10 @@
 #include <exception>  // for exception
 #include <iostream>   // for cout
 #include <memory>     // for shared_ptr
+#include <string>
+#include <fstream>
+
+using std::ofstream;
 
 #ifdef COMPILER_HAS_ROTL
 #include <bit>
@@ -232,6 +236,7 @@ bool gps_l1_ca_telemetry_decoder_gs::decode_subframe()
     int32_t word_index = 0;
     uint32_t GPS_frame_4bytes = 0;
     bool subframe_synchro_confirmation = true;
+
     for (float subframe_symbol : d_symbol_history)
         {
             // ******* SYMBOL TO BIT *******
@@ -357,6 +362,19 @@ int gps_l1_ca_telemetry_decoder_gs::general_work(int noutput_items __attribute__
     // add new symbol to the symbol queue
     d_symbol_history.push_back(current_symbol.Prompt_I);
     d_sample_counter++;  // count for the processed symbols
+
+    if (d_stat >= 1 and current_symbol.Channel_ID == 0)
+    {
+        ofstream file;
+
+        file.open("nav_bit.txt", std::ios_base::app);
+        std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
+        auto duration = now.time_since_epoch();
+        auto millis = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
+        file << millis << " : " << current_symbol.Prompt_I << std::endl;
+        file.close();
+
+    }
     consume_each(1);
     d_flag_preamble = false;
     // check if there is a problem with the telemetry of the current satellite
