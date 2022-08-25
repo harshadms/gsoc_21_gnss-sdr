@@ -143,10 +143,21 @@ rtklib_pvt_gs::rtklib_pvt_gs(uint32_t nchannels,
 
     if (d_enable_security_checks)
         {
-            d_spoofing_detector = PVTConsistencyChecks(&conf_.security_parameters);
+            d_spoofing_detector = SpoofingDetector(&conf_.security_parameters);
             d_print_score = conf_.print_score;
             d_use_aux_peak = conf_.security_parameters.use_aux_peak;
             d_enable_apt = conf_.security_parameters.enable_apt;
+
+            for (uint32_t i = 0; i < nchannels; i++)
+                {
+                    d_spoofing_detector.d_score.amp_results.push_back(false);
+                    d_spoofing_detector.d_score.aux_peak_score.push_back(0);
+                    d_spoofing_detector.d_score.clk_jump.push_back(0);
+
+                    d_channel_prn_map.insert(std::pair<int, int>(i, i));
+                }
+
+            DLOG(INFO) << "TSTAMP:" << d_spoofing_detector.CurrentTime_nanoseconds();
         }
 
     std::string dump_ls_pvt_filename = conf_.dump_filename;
@@ -1563,6 +1574,12 @@ int rtklib_pvt_gs::switch_peaks()
         }
 }
 
+void rtklib_pvt_gs::set_msg_queue(std::shared_ptr<Concurrent_Queue<pmt::pmt_t>> control_queue)
+{
+    DLOG(INFO) << "Setting message queue for spoofing detector object";
+    d_spoofing_detector.set_msg_queue(control_queue);
+}
+
 
 bool rtklib_pvt_gs::send_sys_v_ttff_msg(d_ttff_msgbuf ttff) const
 {
@@ -1684,6 +1701,18 @@ bool rtklib_pvt_gs::get_latest_PVT(double* longitude_deg,
     return false;
 }
 
+bool rtklib_pvt_gs::get_spoofer_status(SpooferStatus* spoofer_stats)
+{
+    if (d_enable_security_checks)
+        {
+            *spoofer_stats = d_spoofing_detector.d_score;
+            return true;
+        }
+    else
+        {
+            return false;
+        }
+}
 
 void rtklib_pvt_gs::apply_rx_clock_offset(std::map<int, Gnss_Synchro>& observables_map,
     double rx_clock_offset_s)
@@ -1865,48 +1894,61 @@ int rtklib_pvt_gs::work(int noutput_items, gr_vector_const_void_star& input_item
             d_gnss_observables_map.clear();
             const auto** in = reinterpret_cast<const Gnss_Synchro**>(&input_items[0]);  // Get the input buffer pointer
 
-
             // ############ 1. READ PSEUDORANGES ####
             for (uint32_t i = 0; i < d_nchannels; i++)
                 {
-                    if (d_enable_apt)
-                        {
-                            if (!in[i][epoch].Flag_Primary_Channel)
-                                {
-                                    int p_channel = in[i][epoch].Primary_Channel_ID;
-                                    uint64_t ts_1 = in[i][epoch].Tracking_sample_counter * 1e9 / in[i][epoch].fs;
-
-                                    uint64_t ts_2 = in[p_channel][epoch].Tracking_sample_counter * 1e9 / in[i][epoch].fs;
-
-                                    int64_t diff = ts_1 - ts_2;
-
-
-                                    if ((diff != 0 || std::fmod(abs(diff), 5) > (6.000 * 1e9)) && in[i][epoch].PRN > 0)
-                                        {
-                                            DLOG(INFO) << " APT: ================================= Auxiliary peak detected =================================";
-                                            DLOG(INFO) << " APT:  PRN: " << in[i][epoch].PRN;
-                                            DLOG(INFO) << " APT:  Separation: " << abs(diff);
-                                        }
-                                }
-                            // Ignore aux channels if "use_aux_peak" is set to false. In this case only the primary channel will be used to compute PVT.
-                            if (d_use_aux_peak)
-                                {
-                                    if (in[i][epoch].Peak_to_track == 0)
-                                        {
-                                            continue;
-                                        }
-                                }
-                            else
-                                {
-                                    if (in[i][epoch].Peak_to_track != 0)
-                                        {
-                                            continue;
-                                        }
-                                }
-                        }
-
                     if (in[i][epoch].Flag_valid_pseudorange)
                         {
+                            d_channel_prn_map[i] = in[i][epoch].PRN;
+                            if (in[i][epoch].Flag_Primary_Channel)
+                                {
+                                    d_spoofing_detector.d_score.amp_results[i] = in[i][epoch].Prompt_corr_detection;
+                                    d_spoofing_detector.d_score.clk_jump[i] = in[i][epoch].Clock_jump;
+                                }
+
+                            if (d_enable_apt)
+                                {
+                                    if (!in[i][epoch].Flag_Primary_Channel)
+                                        {
+                                            int p_channel = in[i][epoch].Primary_Channel_ID;
+                                            uint64_t ts_1 = in[i][epoch].Tracking_sample_counter * 1e9 / in[i][epoch].fs;
+
+                                            uint64_t ts_2 = in[p_channel][epoch].Tracking_sample_counter * 1e9 / in[i][epoch].fs;
+
+                                            int64_t diff = ts_1 - ts_2;
+
+                                            if ((diff != 0 || std::fmod(abs(diff), 5) > (6.000 * 1e9)) && diff <= in[i][epoch].fs / 1000 && in[i][epoch].PRN > 0)
+                                                {
+                                                    DLOG(INFO) << " APT: ================================= Auxiliary peak detected =================================";
+                                                    DLOG(INFO) << " APT:  PRN: " << in[i][epoch].PRN;
+                                                    DLOG(INFO) << " APT:  Separation: " << abs(diff);
+
+                                                    d_spoofing_detector.d_score.aux_peak_score[p_channel] = abs(diff);
+                                                    // Do not stop tracking the aux peak if it is being used for PVT calculation
+                                                }
+                                            else
+                                                {
+                                                    DLOG(INFO) << "APT: Stopping channel " << i << " PRN: " << in[i][epoch].PRN;
+                                                    d_spoofing_detector.stop_tracking(i);
+                                                }
+                                        }
+                                    // Ignore aux channels if "use_aux_peak" is set to false. In this case only the primary channel will be used to compute PVT.
+                                    if (d_use_aux_peak)
+                                        {
+                                            if (in[i][epoch].Peak_to_track == 0)
+                                                {
+                                                    continue;
+                                                }
+                                        }
+                                    else
+                                        {
+                                            if (in[i][epoch].Peak_to_track != 0)
+                                                {
+                                                    continue;
+                                                }
+                                        }
+                                }
+
                             const auto tmp_eph_iter_gps = d_internal_pvt_solver->gps_ephemeris_map.find(in[i][epoch].PRN);
                             const auto tmp_eph_iter_gal = d_internal_pvt_solver->galileo_ephemeris_map.find(in[i][epoch].PRN);
                             const auto tmp_eph_iter_cnav = d_internal_pvt_solver->gps_cnav_ephemeris_map.find(in[i][epoch].PRN);
@@ -2011,6 +2053,25 @@ int rtklib_pvt_gs::work(int noutput_items, gr_vector_const_void_star& input_item
                         {
                             d_channel_initialized.at(i) = false;  // the current channel is not reporting valid observable
                         }
+
+                    d_spoofing_detector.d_score.channel_prn_map = d_channel_prn_map;
+                }
+
+            // Check CNO
+            if (d_enable_security_checks)
+                {
+                    std::vector<double> cno_vector;
+
+                    for (uint32_t i = 0; i < d_nchannels; i++)
+                        {
+                            if (in[i][epoch].Flag_Primary_Channel)
+                                {
+                                    cno_vector.push_back(in[i][epoch].CN0_dB_hz);
+                                }
+                        }
+
+                    d_spoofing_detector.check_CNO(cno_vector);
+                    cno_vector.clear();
                 }
 
             // ############ 2 COMPUTE THE PVT ################################
@@ -2099,15 +2160,17 @@ int rtklib_pvt_gs::work(int noutput_items, gr_vector_const_void_star& input_item
                             // Position check is enabled
                             if (d_enable_security_checks)
                                 {
-                                    d_spoofing_detector.update_pvt(d_user_pvt_solver->get_rx_pos(),
-                                        d_user_pvt_solver->get_rx_vel(),
+                                    d_spoofing_detector.update_pvt(
+                                        d_user_pvt_solver->get_latitude(),
+                                        d_user_pvt_solver->get_longitude(),
+                                        d_user_pvt_solver->get_height(),
+                                        d_user_pvt_solver->get_rx_vel()[0],
+                                        d_user_pvt_solver->get_rx_vel()[1],
+                                        d_user_pvt_solver->get_rx_vel()[2],
                                         d_user_pvt_solver->get_speed_over_ground(),
                                         d_user_pvt_solver->get_course_over_ground(),
                                         current_RX_time_ms,
                                         d_user_pvt_solver->get_position_UTC_time());
-
-                                    // Set gnss_synchro for spoofing detector
-                                    d_spoofing_detector.d_gnss_synchro = in;
 
                                     if (d_spoofing_detector.d_position_check)
                                         {

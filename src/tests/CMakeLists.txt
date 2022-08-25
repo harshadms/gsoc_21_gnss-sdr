@@ -528,6 +528,8 @@ if(ENABLE_UNIT_TESTING)
             system_testing_lib
             core_receiver
     )
+
+
     target_include_directories(run_tests
         INTERFACE
             ${CMAKE_SOURCE_DIR}/src/tests/common-files
@@ -997,6 +999,7 @@ if(NOT ENABLE_PACKAGING AND NOT ENABLE_FPGA)
         INTERFACE
             ${CMAKE_SOURCE_DIR}/src/tests/common-files
     )
+
     add_test(acq_test acq_test)
 
     if(USE_GENERIC_LAMBDAS)

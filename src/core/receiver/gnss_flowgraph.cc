@@ -98,8 +98,8 @@ void GNSSFlowgraph::init()
      */
 
     // APT params
-    enable_apt = configuration_->property("SecureACQ.enable_apt", true);
-    channels_per_sv = configuration_->property("SecureACQ.channels_per_sv", 2);
+    enable_apt = configuration_->property("SecureGNSS.enable_apt", true);
+    channels_per_sv = configuration_->property("SecureGNSS.channels_per_sv", 2);
 
     auto block_factory = std::make_unique<GNSSBlockFactory>();
 
@@ -2013,6 +2013,7 @@ void GNSSFlowgraph::acquisition_manager(unsigned int who)
  * -> 0 acquisition failed
  * -> 1 acquisition successful
  * -> 2 tracking lost
+ * -> 3 Re-acquire aux peak (spoofing detector)
  * --- actions from TC receiver control ---
  * -> 10 TC request standby mode
  * -> 11 TC request coldstart
@@ -2102,6 +2103,40 @@ void GNSSFlowgraph::apply_action(unsigned int who, unsigned int what)
                         }
                 }
             break;
+
+        case 3:
+            channels_[who]->stop_channel();
+
+            gs = channels_[who]->get_signal();
+            DLOG(INFO) << "CHN: " << who << " TRK FAILED satellite " << gs.get_satellite() << " - Restart ACQ";
+            if (acq_channels_count_ < max_acq_channels_)
+                {
+                    // try to acquire the same satellite
+                    channels_state_[who] = 1;
+                    acq_channels_count_++;
+                    DLOG(INFO) << "Channel " << who << " Starting acquisition " << gs.get_satellite() << ", Signal " << gs.get_signal_str();
+                    channels_[who]->set_signal(channels_[who]->get_signal());
+
+#if ENABLE_FPGA
+                    // create a task for the FPGA such that it doesn't stop the flow
+                    std::thread tmp_thread(&ChannelInterface::start_acquisition, channels_[who]);
+                    tmp_thread.detach();
+#else
+                    channels_[who]->start_acquisition();
+#endif
+                }
+            else
+                {
+                    channels_state_[who] = 0;
+                    LOG(INFO) << "Channel " << who << " Idle state";
+                    if (sat == 0)
+                        {
+                            push_back_signal(channels_[who]->get_signal());
+                        }
+                }
+            channels_[who]->start_acquisition();
+            break;
+
         case 10:  // request standby mode
             for (size_t n = 0; n < channels_.size(); n++)
                 {
@@ -2666,11 +2701,10 @@ void GNSSFlowgraph::set_channels_state()
 
 void GNSSFlowgraph::set_APT_status()
 {
-    if (enable_apt)
+    for (int i = 0; i < channels_count_; i++)
         {
-            for (int i = 0; i < channels_count_; i++)
-                {
-                    // Set the peak to track
+            if (enable_apt)
+                {  // Set the peak to track
                     uint32_t peak_to_track = floor(i / (channels_count_ / channels_per_sv));
 
                     if (i < (channels_count_ / channels_per_sv))
@@ -2682,6 +2716,10 @@ void GNSSFlowgraph::set_APT_status()
                             uint32_t id = i % (channels_count_ / channels_per_sv);
                             channels_.at(i)->set_APT_status(false, id, peak_to_track);
                         }
+                }
+            else
+                {
+                    channels_.at(i)->set_APT_status(true, i, 0);
                 }
         }
 }

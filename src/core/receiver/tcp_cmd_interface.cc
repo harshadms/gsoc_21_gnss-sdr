@@ -53,7 +53,8 @@ void TcpCmdInterface::register_functions()
     functions_["hotstart"] = [&](auto &s) { return TcpCmdInterface::hotstart(s); };
     functions_["warmstart"] = [&](auto &s) { return TcpCmdInterface::warmstart(s); };
     functions_["coldstart"] = [&](auto &s) { return TcpCmdInterface::coldstart(s); };
-    functions_["switch_peaks"] = std::bind(&TcpCmdInterface::switch_peaks, this, std::placeholders::_1);
+    functions_["switch_peaks"] = [&](auto &s) { return TcpCmdInterface::switch_peaks(s); };
+    functions_["spoofer_status"] = [&](auto &s) { return TcpCmdInterface::spoofer_status(s); };
     functions_["set_ch_satellite"] = [&](auto &s) { return TcpCmdInterface::set_ch_satellite(s); };
 #else
     functions_["status"] = std::bind(&TcpCmdInterface::status, this, std::placeholders::_1);
@@ -63,6 +64,7 @@ void TcpCmdInterface::register_functions()
     functions_["warmstart"] = std::bind(&TcpCmdInterface::warmstart, this, std::placeholders::_1);
     functions_["coldstart"] = std::bind(&TcpCmdInterface::coldstart, this, std::placeholders::_1);
     functions_["switch_peaks"] = std::bind(&TcpCmdInterface::switch_peaks, this, std::placeholders::_1);
+    functions_["spoofer_status"] = std::bind(&TcpCmdInterface::spoofer_status, this, std::placeholders::_1);
     functions_["set_ch_satellite"] = std::bind(&TcpCmdInterface::set_ch_satellite, this, std::placeholders::_1);
 #endif
 }
@@ -172,10 +174,139 @@ std::string TcpCmdInterface::status(const std::vector<std::string> &commandLine 
         {
             str_stream << "No PVT information available.\n";
         }
+    return str_stream.str();
+}
 
-    // TO-DO: Implement a spoofer status report
 
+std::string TcpCmdInterface::spoofer_status(const std::vector<std::string> &commandLine __attribute__((unused)))
+{
+    std::stringstream str_stream;
+    SpooferStatus spoofer_stats;
 
+    std::stringstream apt_str_stream;
+    std::stringstream amp_str_stream;
+    std::stringstream clk_str_stream;
+
+    if (!PVT_sptr_->get_spoofer_status(&spoofer_stats))
+        {
+            str_stream << "Spoofing detection disabled\n";
+            return str_stream.str();
+        }
+
+    // int position_jump_score = 0;
+    // double velocity_check_score = 0;
+    // int static_pos_check_score = 0;
+    // bool clk_offset = false;
+    // int cno = 0;
+
+    str_stream << "\n============== Spoofing Detection Report - BEGIN ==============\n\n";
+    int nchannels = spoofer_stats.amp_results.size();
+
+    // ============== Position jump
+    str_stream << "Position jump           :";
+    if (spoofer_stats.position_jump_score > 0)
+        {
+            str_stream << "POSITION JUMP DETECTED - " << spoofer_stats.position_jump_score << " m\n";
+        }
+    else
+        {
+            str_stream << "POSITION JUMP NOT DETECTED\n";
+        }
+
+    // ============== Velocity check
+    str_stream << "Velocity check          :";
+    if (spoofer_stats.velocity_check_score > 0)
+        {
+            str_stream << "VELOCITY INCONSISTENT\n";
+        }
+    else
+        {
+            str_stream << "VELOCITY CONSISTENT\n";
+        }
+
+    // ============== static pos check
+    str_stream << "Static position check   :";
+    if (spoofer_stats.static_pos_check_score > 0)
+        {
+            str_stream << "STATIC POSITION INCONSISTENT by " << spoofer_stats.static_pos_check_score << " m\n";
+        }
+    else
+        {
+            str_stream << "STATIC POSITION CONSISTENT\n";
+        }
+
+    // ============== clock offset
+    str_stream << "Clock offset            :";
+    if (spoofer_stats.clk_offset)
+        {
+            str_stream << "SPOOFING DETECTED\n";
+        }
+    else
+        {
+            str_stream << "SPOOFING NOT DETECTED\n";
+        }
+
+    // ============== APT and Overshadow attack
+    apt_str_stream << "Auxiliary peak tracking :";
+    amp_str_stream << "Overshadow attack       :";
+    clk_str_stream << "Time jump               :";
+
+    int aux_count = 0;
+    int amp_count = 0;
+    int clk_count = 0;
+
+    for (auto i = 0; i < nchannels; i++)
+        {
+            if (spoofer_stats.aux_peak_score[i] > 0)
+                {
+                    apt_str_stream << "\n   - PRN: " << spoofer_stats.channel_prn_map[i] << " separation: " << spoofer_stats.aux_peak_score[i] << " ns";
+                    aux_count++;
+                }
+            if (spoofer_stats.amp_results[i])
+                {
+                    amp_str_stream << "\n   - PRN: " << spoofer_stats.channel_prn_map[i] << " overshadow attack: DETECTED";
+                    amp_count++;
+                }
+            if (spoofer_stats.clk_jump[i] > 0)
+                {
+                    clk_str_stream << "\n   - PRN: " << spoofer_stats.channel_prn_map[i] << " time jump: " << spoofer_stats.clk_jump[i] << " ms";
+                    clk_count++;
+                }
+        }
+
+    if (aux_count == 0)
+        {
+            apt_str_stream << "SPOOFING NOT DETECTED\n";
+        }
+    else
+        {
+            apt_str_stream << "\nAuxiliary peaks detected in " << aux_count << " channels\n";
+        }
+
+    if (amp_count == 0)
+        {
+            amp_str_stream << "SPOOFING NOT DETECTED\n";
+        }
+    else
+        {
+            amp_str_stream << "\nOvershadow attack detected on " << amp_count << " channels\n";
+        }
+
+    if (clk_count == 0)
+        {
+            clk_str_stream << "SPOOFING NOT DETECTED\n";
+        }
+    else
+        {
+            clk_str_stream << "Time jump detected on " << clk_count << " channels\n";
+        }
+
+    str_stream << apt_str_stream.rdbuf();
+    str_stream << amp_str_stream.rdbuf();
+    str_stream << clk_str_stream.rdbuf();
+
+    //str_stream << "Spoofer status: Static position check: " << spoofer_stats.static_pos_check_score << "\n";
+    str_stream << "\n============== Spoofing Detection Report - END ==============\n";
     return str_stream.str();
 }
 

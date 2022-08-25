@@ -38,7 +38,7 @@ void Tlm_Conf::SetFromConfiguration(const ConfigurationInterface *configuration,
 
     if (security_checks)
         {
-            security_parameters.check_RX_clock = configuration->property("SecureTLM.check_RX_clock", false);
-            security_parameters.check_TOW = configuration->property("SecureTLM.check_TOW", false);
+            security_parameters.check_RX_clock = configuration->property("SecureGNSS.check_RX_clock", false);
+            security_parameters.check_TOW = configuration->property("SecureGNSS.check_TOW", false);
         }
 }

@@ -32,10 +32,7 @@ set(GNSS_SPLIBS_SOURCES
     pass_through.cc
     short_x2_to_cshort.cc
     gnss_sdr_string_literals.cc
-    pvt_consistency_checks.cc
-    pvt_consistency_checks_conf.cc
-    tlm_consistency_checks.cc
-    tlm_consistency_checks_conf.cc
+    spoofing_detector.cc
 )
 
 set(GNSS_SPLIBS_HEADERS
@@ -115,6 +112,12 @@ target_link_libraries(algorithms_libs
         Volkgnsssdr::volkgnsssdr
         Gflags::gflags
         Glog::glog
+)
+
+target_include_directories(algorithms_libs
+    PUBLIC
+        ${CMAKE_SOURCE_DIR}/src/core/receiver
+        ${CMAKE_SOURCE_DIR}/src/core/libs
 )
 
 if(GNURADIO_USES_STD_POINTERS)

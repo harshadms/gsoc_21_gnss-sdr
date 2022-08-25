@@ -54,7 +54,6 @@ Acq_Conf::Acq_Conf()
     resampler_latency_samples = 0U;
     enable_monitor_output = false;
     dump_sv = 0;
-    peak_separation = 0;
 }
 
 
@@ -122,10 +121,9 @@ void Acq_Conf::SetFromConfiguration(const ConfigurationInterface *configuration,
         }
 
     enable_monitor_output = configuration->property("AcquisitionMonitor.enable_monitor", false);
-    enable_apt = configuration->property("SecureACQ.enable_apt", true);
-    peak_separation = configuration->property("SecureACQ.peak_separation", 500);
-    dump_all = configuration->property(role + ".dump_all", false);
-    dump_on_positive_acq = configuration->property(role + ".dump_on_positive_acq", false);
+
+    enable_apt = configuration->property("SecureGNSS.enable_apt", true);
+    peak_separation = configuration->property("SecureGNSS.peak_separation", 500);
 
     SetDerivedParams();
 }

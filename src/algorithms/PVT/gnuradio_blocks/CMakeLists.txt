@@ -41,6 +41,7 @@ endif()
 target_include_directories(pvt_gr_blocks
     PUBLIC
         ${CMAKE_SOURCE_DIR}/src/core/interfaces
+        ${CMAKE_SOURCE_DIR}/src/core/libs
 )
 
 if(USE_GENERIC_LAMBDAS)

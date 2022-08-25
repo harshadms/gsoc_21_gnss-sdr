@@ -86,6 +86,8 @@ public:
     // Spoofing detector
     bool Acquisition_detection{};  //!< Set by acquisition block
     bool Prompt_corr_detection{};  //!< Set by tracking block
+    double Clock_jump{};
+
     uint32_t Peak_to_track{};
 
     /// Copy constructor
@@ -129,6 +131,7 @@ public:
                 this->Flag_valid_pseudorange = rhs.Flag_valid_pseudorange;
                 this->Acquisition_detection = rhs.Acquisition_detection;
                 this->Prompt_corr_detection = rhs.Prompt_corr_detection;
+                this->Clock_jump = rhs.Clock_jump;
                 this->Flag_Primary_Channel = rhs.Flag_Primary_Channel;
                 this->Primary_Channel_ID = rhs.Primary_Channel_ID;
                 this->Peak_to_track = rhs.Peak_to_track;
@@ -176,6 +179,7 @@ public:
                 this->Flag_valid_pseudorange = other.Flag_valid_pseudorange;
                 this->Acquisition_detection = other.Acquisition_detection;
                 this->Prompt_corr_detection = other.Prompt_corr_detection;
+                this->Clock_jump = other.Clock_jump;
                 this->Flag_Primary_Channel = other.Flag_Primary_Channel;
                 this->Primary_Channel_ID = other.Primary_Channel_ID;
                 this->Peak_to_track = other.Peak_to_track;
@@ -227,7 +231,7 @@ public:
         ar& BOOST_SERIALIZATION_NVP(Flag_valid_pseudorange);
         ar& BOOST_SERIALIZATION_NVP(Acquisition_detection);
         ar& BOOST_SERIALIZATION_NVP(Prompt_corr_detection);
-
+        ar& BOOST_SERIALIZATION_NVP(Clock_jump);
         ar& BOOST_SERIALIZATION_NVP(Flag_Primary_Channel);
         ar& BOOST_SERIALIZATION_NVP(Primary_Channel_ID);
         ar& BOOST_SERIALIZATION_NVP(Peak_to_track);

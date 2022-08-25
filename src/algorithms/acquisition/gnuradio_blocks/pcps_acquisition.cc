@@ -136,12 +136,17 @@ pcps_acquisition::pcps_acquisition(const Acq_Conf& conf_) : gr::block("pcps_acqu
     d_dump_channel = d_acq_parameters.dump_channel;
     d_dump_sv = d_acq_parameters.dump_sv;
     d_dump = d_acq_parameters.dump;
-    d_dump_all = d_acq_parameters.dump_all;
     d_dump_filename = d_acq_parameters.dump_filename;
-    d_dump_on_positive_acq = d_acq_parameters.dump_on_positive_acq;
 
+    // Spoofing detector
+    d_spoofing_detector = SpoofingDetector();
     d_acquire_aux_peaks = d_acq_parameters.enable_apt;
-    d_peak_sep_min = d_acq_parameters.peak_separation * 1e-9 * d_acq_parameters.fs_in;
+
+    if (d_acquire_aux_peaks)
+        {
+            DLOG(INFO) << "SD_STATUS: APT CHECK ENABLED";
+            d_peak_sep_min = d_acq_parameters.peak_separation * 1e-9 * d_acq_parameters.fs_in;
+        }
 
     if (d_dump)
         {
@@ -363,7 +368,7 @@ void pcps_acquisition::send_positive_acquisition()
                << ", Assist doppler_center " << d_doppler_center;
     d_positive_acq = 1;
 
-    DLOG(INFO) << "APT: CH: " << d_channel << ", " << d_gnss_synchro->Acq_delay_samples << ", " << d_gnss_synchro->Acq_doppler_hz << ", " << d_gnss_synchro->Peak_to_track;
+    DLOG(INFO) << "APT: CH: " << d_channel << ", " << d_gnss_synchro->Acq_delay_samples << ", " << d_gnss_synchro->Acq_doppler_hz << ", " << d_gnss_synchro->Peak_to_track << " , primary " << d_gnss_synchro->Flag_Primary_Channel;
     if (!d_channel_fsm.expired())
         {
             // the channel FSM is set, so, notify it directly the positive acquisition to minimize delays
@@ -621,6 +626,7 @@ void pcps_acquisition::acquire_aux_peak(uint32_t num_doppler_bins, int32_t doppl
 
     double temp_code_phase = 0;
 
+    DLOG(INFO) << "AUX PEAK";
     // Set code phase limits for aux peak detection
 
     const int32_t effective_fft_size = (d_acq_parameters.bit_transition_flag ? d_fft_size / 2 : d_fft_size);
@@ -768,7 +774,7 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
                             volk_32f_x2_add_32f(d_magnitude_grid[doppler_index].data(), d_magnitude_grid[doppler_index].data(), d_tmp_buffer.data(), effective_fft_size);
                         }
                     // Record results to file if required
-                    if (d_dump and (d_dump_sv == d_gnss_synchro->PRN or d_dump_all))
+                    if (d_dump and d_channel == d_dump_channel)
                         {
                             memcpy(d_grid.colptr(doppler_index), d_magnitude_grid[doppler_index].data(), sizeof(float) * effective_fft_size);
                         }
@@ -831,16 +837,9 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
                             volk_32f_x2_add_32f(d_magnitude_grid[doppler_index].data(), d_magnitude_grid[doppler_index].data(), d_tmp_buffer.data(), effective_fft_size);
                         }
                     // Record results to file if required
-                    if (d_dump)
+                    if (d_dump and d_channel == d_dump_channel)
                         {
-                            if (d_dump_sv == d_gnss_synchro->PRN)
-                                {
-                                    memcpy(d_narrow_grid.colptr(doppler_index), d_magnitude_grid[doppler_index].data(), sizeof(float) * effective_fft_size);
-                                }
-                            else if (d_dump_channel == d_channel)
-                                {
-                                    memcpy(d_narrow_grid.colptr(doppler_index), d_magnitude_grid[doppler_index].data(), sizeof(float) * effective_fft_size);
-                                }
+                            memcpy(d_narrow_grid.colptr(doppler_index), d_magnitude_grid[doppler_index].data(), sizeof(float) * effective_fft_size);
                         }
                 }
             // Compute the test statistic
@@ -981,24 +980,15 @@ void pcps_acquisition::acquisition_core(uint64_t samp_count)
     if ((d_num_noncoherent_integrations_counter == d_acq_parameters.max_dwells) or (d_positive_acq == 1))
         {
             // Record results to file if required
-            if (d_dump and (d_dump_sv == d_gnss_synchro->PRN or d_dump_all))
+
+            if (d_dump and d_dump_channel == d_channel)
                 {
-                    // Dump only if positive acq - REMOVE after debugging
-                    if (d_dump_on_positive_acq)
-                        {
-                            if (d_positive_acq)
-                                {
-                                    pcps_acquisition::dump_results(effective_fft_size);
-                                }
-                        }
-                    else
-                        {
-                            pcps_acquisition::dump_results(effective_fft_size);
-                        }
+                    pcps_acquisition::dump_results(effective_fft_size);
                 }
+
+            d_num_noncoherent_integrations_counter = 0U;
+            d_positive_acq = 0;
         }
-    d_num_noncoherent_integrations_counter = 0U;
-    d_positive_acq = 0;
 }
 
 // Called by gnuradio to enable drivers, etc for i/o devices.

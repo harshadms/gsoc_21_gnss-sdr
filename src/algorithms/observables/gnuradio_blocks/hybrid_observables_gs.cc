@@ -26,6 +26,7 @@
 #include <glog/logging.h>
 #include <gnuradio/io_signature.h>
 #include <matio.h>
+#include <pmt/pmt.h>
 #include <array>
 #include <cmath>      // for round
 #include <cstdlib>    // for size_t, llabs
@@ -427,7 +428,6 @@ bool hybrid_observables_gs::interp_trk_obs(Gnss_Synchro &interpolated_obs, uint3
                                     // TOW rollover situation
                                     interpolated_obs.interp_TOW_ms = static_cast<double>(d_gnss_synchro_history->get(ch, t1_idx).TOW_at_current_symbol_ms) + (static_cast<double>(d_gnss_synchro_history->get(ch, t2_idx).TOW_at_current_symbol_ms + 604800000) - static_cast<double>(d_gnss_synchro_history->get(ch, t1_idx).TOW_at_current_symbol_ms)) * time_factor;
                                 }
-
                             // LOG(INFO) << "Channel " << ch << " int idx: " << t1_idx << " TOW Int: " << interpolated_obs.interp_TOW_ms
                             //           << " TOW p1 : " << d_gnss_synchro_history->get(ch, t1_idx).TOW_at_current_symbol_ms
                             //           << " TOW p2: "
@@ -612,12 +612,15 @@ int hybrid_observables_gs::general_work(int noutput_items __attribute__((unused)
 
     // Push receiver clock into history buffer (connected to the last of the input channels)
     // The clock buffer gives time to the channels to compute the tracking observables
+
+
     if (ninput_items[d_nchannels_in - 1] > 0)
         {
             d_Rx_clock_buffer.push_back(in[d_nchannels_in - 1][0].Tracking_sample_counter);
             // Consume one item from the clock channel (last of the input channels)
             consume(static_cast<int32_t>(d_nchannels_in) - 1, 1);
         }
+
 
     // Push the tracking observables into buffers to allow the observable interpolation at the desired Rx clock
     for (uint32_t n = 0; n < d_nchannels_out; n++)
@@ -664,6 +667,7 @@ int hybrid_observables_gs::general_work(int noutput_items __attribute__((unused)
                         {
                             n_valid++;
                         }
+
                     epoch_data[n] = interpolated_gnss_synchro;
                 }
 

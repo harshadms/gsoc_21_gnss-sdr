@@ -18,7 +18,7 @@
 #ifndef GNSS_SDR_TLM_CONF_H
 #define GNSS_SDR_TLM_CONF_H
 #include "configuration_interface.h"
-#include "spoofing_detector_conf.h"
+#include "spoofing_detector.h"
 #include <string>
 
 /** \addtogroup Telemetry_Decoder
@@ -41,7 +41,7 @@ public:
     bool enable_reed_solomon;  // for INAV message in Galileo E1B
     bool security_checks;
 
-    TLMConsistencyChecksConf security_parameters;
+    SpoofingDetectorConfig security_parameters;
 };
 
 

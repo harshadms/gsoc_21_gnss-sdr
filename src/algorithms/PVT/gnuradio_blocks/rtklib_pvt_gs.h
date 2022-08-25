@@ -26,15 +26,16 @@
 #include <gnuradio/sync_block.h>  // for sync_block
 #include <gnuradio/types.h>       // for gr_vector_const_void_star
 #include <pmt/pmt.h>              // for pmt_t
-#include <chrono>                 // for system_clock
-#include <cstddef>                // for size_t
-#include <cstdint>                // for int32_t
-#include <ctime>                  // for time_t
-#include <map>                    // for map
-#include <memory>                 // for shared_ptr, unique_ptr
-#include <string>                 // for string
-#include <sys/types.h>            // for key_t
-#include <vector>                 // for vector
+#include <algorithm>
+#include <chrono>       // for system_clock
+#include <cstddef>      // for size_t
+#include <cstdint>      // for int32_t
+#include <ctime>        // for time_t
+#include <map>          // for map
+#include <memory>       // for shared_ptr, unique_ptr
+#include <string>       // for string
+#include <sys/types.h>  // for key_t
+#include <vector>       // for vector
 
 /** \addtogroup PVT
  * \{ */
@@ -125,6 +126,16 @@ public:
         double* course_over_ground_deg,
         time_t* UTC_time) const;
 
+    /*!
+     * \brief Get the latest SpoofingDetector stats
+     */
+    bool get_spoofer_status(SpooferStatus* spoofer_stats);
+
+    /*!
+     * \brief Set message queue to enable spoofing detector to stop tracking
+     */
+    void set_msg_queue(std::shared_ptr<Concurrent_Queue<pmt::pmt_t>> control_queue);
+
     int work(int noutput_items, gr_vector_const_void_star& input_items,
         gr_vector_void_star& output_items);  //!< PVT Signal Processing
 
@@ -190,6 +201,7 @@ private:
     std::vector<bool> d_channel_initialized;
     std::vector<double> d_initial_carrier_phase_offset_estimation_rads;
 
+    std::vector<int> channels_not_tracked;
     enum StringValue_
     {
         evGPS_1C,
@@ -281,9 +293,11 @@ private:
     bool d_enable_apt;
     bool d_use_aux_peak;
 
-    PVTConsistencyChecks d_spoofing_detector;
     bool d_print_score;
     std::string COLOR;
+    // for spoofer status
+    std::map<int, int> d_channel_prn_map;
+    SpoofingDetector d_spoofing_detector;
 };
 
 

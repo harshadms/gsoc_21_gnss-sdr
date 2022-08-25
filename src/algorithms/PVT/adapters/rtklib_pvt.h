@@ -68,6 +68,7 @@ public:
 
     void clear_ephemeris() override;
     int switch_peaks() override;
+    void set_msg_queue(std::shared_ptr<Concurrent_Queue<pmt::pmt_t>> control_queue) override;
 
     std::map<int, Gps_Ephemeris> get_gps_ephemeris() const override;
     std::map<int, Galileo_Ephemeris> get_galileo_ephemeris() const override;
@@ -96,6 +97,8 @@ public:
         double* ground_speed_kmh,
         double* course_over_ground_deg,
         time_t* UTC_time) override;
+
+    bool get_spoofer_status(SpooferStatus* spoofer_stats) override;
 
 private:
     rtklib_pvt_gs_sptr pvt_;

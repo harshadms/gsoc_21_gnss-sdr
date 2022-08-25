@@ -42,16 +42,14 @@ public:
     int min_ground_speed;
     int max_ground_speed;
 
+    uint16_t clk_offset_vector_size;
+    int clk_offset_error;
+
     double static_lat;
     double static_lon;
     double static_alt;
+
+    double cno_threshold;
 };
 
-class TLMConsistencyChecksConf
-{
-public:
-    TLMConsistencyChecksConf();
-    bool check_TOW = false;
-    bool check_RX_clock = false;
-};
 #endif  // GNSS_SDR_PVT_CONF_H

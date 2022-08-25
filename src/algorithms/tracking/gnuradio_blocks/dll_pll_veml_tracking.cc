@@ -52,6 +52,7 @@
 #include <pmt/pmt_sugar.h>           // for mp
 #include <volk_gnsssdr/volk_gnsssdr.h>
 #include <algorithm>  // for fill_n
+#include <algorithm>
 #include <array>
 #include <cmath>      // for fmod, round, floor
 #include <exception>  // for exception
@@ -590,13 +591,21 @@ dll_pll_veml_tracking::dll_pll_veml_tracking(const Dll_Pll_Conf &conf_) : gr::bl
     d_acc_carrier_phase_initialized = false;
 
     // Spoofing detector
-    d_prompt_I_count = 0;
-    d_spoofing_mark = 0;
-    d_prompt_I_sum = 0;
-    d_threshold = 0;
+    d_spoofing_detector = SpoofingDetector();
+    d_enable_sd = d_trk_parameters.enable_sd;
 
-    d_spoofing = false;
-    d_bit_synchronization = false;
+    if (d_enable_sd)
+        {
+            DLOG(INFO) << "SD_STATUS: TRK AMP CHECK ENABLED";
+            d_prompt_I_count = 0;
+            d_spoofing_mark = 0;
+            d_prompt_I_sum = 0;
+            d_threshold = 0;
+
+            d_spoofing = false;
+            d_bit_synchronization = false;
+            d_amp_vector_size = d_trk_parameters.amp_vector_size;
+        }
 }
 
 
@@ -853,9 +862,11 @@ void dll_pll_veml_tracking::start_tracking()
     d_code_loop_filter.initialize();                                                 // initialize the code filter
 
     // DEBUG OUTPUT
-    std::cout << "Tracking of " << d_systemName << " " << d_signal_pretty_name << " signal started on channel " << d_channel << " for satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN) << '\n';
-    DLOG(INFO) << "Starting tracking of satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN) << " on channel " << d_channel;
-
+    if (d_acquisition_gnss_synchro->Flag_Primary_Channel)
+        {
+            std::cout << "Tracking of " << d_systemName << " " << d_signal_pretty_name << " signal started on channel " << d_channel << " for satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN) << '\n';
+            DLOG(INFO) << "Starting tracking of satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN) << " on channel " << d_channel;
+        }
     // enable tracking pull-in
     d_state = 1;
     d_cloop = true;
@@ -1438,8 +1449,61 @@ void dll_pll_veml_tracking::log_data()
                     // PRN
                     uint32_t prn_ = d_acquisition_gnss_synchro->PRN;
                     d_dump_file.write(reinterpret_cast<char *>(&prn_), sizeof(uint32_t));
+                    DLOG(INFO) << "DBG:" << d_channel << "," << d_rem_code_phase_samples << "," << d_sample_counter;
+                }
+            catch (const std::ifstream::failure &e)
+                {
+                    LOG(WARNING) << "Exception writing trk dump file " << e.what();
+                }
+            // Spoofing detection part - // add projected amp logic like clock offset
+            if (d_enable_sd)
+                {
+                    d_prompt_I_vector.push_back(prompt_I);
+                    if (d_prompt_I_vector.size() > d_amp_vector_size)
+                        {
+                            int no_elements_to_remove = d_prompt_I_vector.size() - d_amp_vector_size;
+                            d_prompt_I_vector.erase(d_prompt_I_vector.begin(), d_prompt_I_vector.begin() + no_elements_to_remove);
 
-                    // Spoofing detection part - need to move this to a suitable location later.
+                            //double avg_error = std::accumulate(d_prompt_I_vector.begin(), d_prompt_I_vector.end(), 0) / d_prompt_I_vector.size();
+
+                            // Credits - PNT-Integrity library
+                            double prompt_I_Exp = 0.0;
+                            double prompt_I_Var = 0.0;
+                            unsigned int i = 0;
+
+                            for (auto it = d_prompt_I_vector.begin(); it != (d_prompt_I_vector.end() - 1); ++it)
+                                {
+                                    prompt_I_Exp += (*it);
+                                    prompt_I_Var += pow((*it), 2);
+                                    ++i;
+                                }
+
+                            prompt_I_Exp = prompt_I_Exp / i;
+                            prompt_I_Var = prompt_I_Var / i;
+                            prompt_I_Var = prompt_I_Var - pow(prompt_I_Exp, 2);
+                            /// \note driftVar - pow(driftExp,2) can sometimes be slightly negative
+                            /// due to quantization, set all negative values to 0
+                            if (prompt_I_Var < 0)
+                                {
+                                    prompt_I_Var = 0.0;
+                                }
+
+                            d_prompt_I_var_vector.push_back(prompt_I_Var);
+                            if (d_prompt_I_var_vector.size() > d_amp_vector_size / 10)
+                                {
+                                    int no_elements_to_remove = d_prompt_I_var_vector.size() - d_amp_vector_size / 10;
+                                    d_prompt_I_var_vector.erase(d_prompt_I_var_vector.begin(), d_prompt_I_var_vector.begin() + no_elements_to_remove);
+
+                                    double avg_var = std::accumulate(d_prompt_I_var_vector.begin(), d_prompt_I_var_vector.end(), 0) / d_prompt_I_var_vector.size();
+
+                                    // if (avg_var > prompt_I_Var)
+                                    //     {
+                                    //         spoofing_flag = true;
+                                    //         //DLOG(INFO) << "CLK_OFFSET: Spoofing detected at " << SpoofingDetector::CurrentTime_nanoseconds() << " ns  Recv offset: " << clk_offset * 1e9 << " - projected: " << offset_propd << " - error: " << offsetError;
+                                    //     }
+                                    DLOG(INFO) << "TRK_VAR_" << d_channel << " : " << avg_var << " : T : " << d_spoofing_detector.CurrentTime_nanoseconds();
+                                }
+                        }
                     if (d_bit_synchronization)
                         {
                             if (abs(prompt_I) > d_threshold)
@@ -1447,7 +1511,7 @@ void dll_pll_veml_tracking::log_data()
                                     if (!d_spoofing)
                                         {
                                             d_spoofing = true;
-                                            DLOG(INFO) << "TRK: Baseband amp jump detected " << prn_ << " Threshold " << d_threshold << " PromptI " << abs(prompt_I);
+                                            DLOG(INFO) << "TRK: Baseband amp jump detected " << d_acquisition_gnss_synchro->PRN << " Threshold " << d_threshold << " PromptI " << abs(prompt_I);
                                             d_spoofing_mark = d_prompt_I_count;
                                             d_acquisition_gnss_synchro->Prompt_corr_detection = true;
                                         }
@@ -1457,7 +1521,7 @@ void dll_pll_veml_tracking::log_data()
                                     if (d_spoofing)
                                         {
                                             d_spoofing = false;
-                                            DLOG(INFO) << "TRK: Baseband amp back to normal PRN " << prn_ << " Threshold " << d_threshold << " PromptI " << abs(prompt_I);
+                                            DLOG(INFO) << "TRK: Baseband amp back to normal PRN " << d_acquisition_gnss_synchro->PRN << " Threshold " << d_threshold << " PromptI " << abs(prompt_I);
                                             d_spoofing_mark = 0;
                                             d_acquisition_gnss_synchro->Prompt_corr_detection = false;
                                             if (abs(prompt_I) > d_threshold)
@@ -1480,15 +1544,12 @@ void dll_pll_veml_tracking::log_data()
 
                     ++d_prompt_I_count;
 
-                    //d_threshold = abs(d_prompt_I_sum) / d_prompt_I_count;
-                }
-            catch (const std::ifstream::failure &e)
-                {
-                    LOG(WARNING) << "Exception writing trk dump file " << e.what();
+                    DLOG(INFO) << "TRK_PLT_" << d_channel << ", " << d_spoofing_detector.CurrentTime_nanoseconds() << ", " << abs(prompt_I) / d_threshold << ", " << d_spoofing;
                 }
         }
-}
 
+    //d_threshold = abs(d_prompt_I_sum) / d_prompt_I_count;
+}
 
 int32_t dll_pll_veml_tracking::save_matfile() const
 {
@@ -1872,10 +1933,13 @@ int dll_pll_veml_tracking::general_work(int noutput_items __attribute__((unused)
                                                 next_state = acquire_secondary();
                                                 if (next_state)
                                                     {
-                                                        LOG(INFO) << d_systemName << " " << d_signal_pretty_name << " tracking bit synchronization locked in channel " << d_channel
-                                                                  << " for satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN) << '\n';
-                                                        std::cout << d_systemName << " " << d_signal_pretty_name << " tracking bit synchronization locked in channel " << d_channel
-                                                                  << " for satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN) << '\n';
+                                                        if (d_acquisition_gnss_synchro->Flag_Primary_Channel)
+                                                            {
+                                                                LOG(INFO) << d_systemName << " " << d_signal_pretty_name << " tracking bit synchronization locked in channel " << d_channel
+                                                                          << " for satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN) << '\n';
+                                                                std::cout << d_systemName << " " << d_signal_pretty_name << " tracking bit synchronization locked in channel " << d_channel
+                                                                          << " for satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN) << '\n';
+                                                            }
                                                     }
                                             }
                                     }

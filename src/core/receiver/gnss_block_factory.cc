@@ -1741,11 +1741,11 @@ unsigned int GNSSBlockFactory::GetGPSL1Channels(const ConfigurationInterface* co
 {
     unsigned int Channels_1C_count = configuration->property("Channels_1C.count", 0);
 
-    bool enable_apt = configuration->property("SecureACQ.enable_apt", true);
+    bool enable_apt = configuration->property("SecureGNSS.enable_apt", true);
     // If apt is enabled
     if (enable_apt)
         {
-            unsigned int channels_per_sv = configuration->property("SecureACQ.channels_per_sv", 2);
+            unsigned int channels_per_sv = configuration->property("SecureGNSS.channels_per_sv", 2);
             unsigned int processor_count = std::thread::hardware_concurrency();
 
             // Concurrency warning

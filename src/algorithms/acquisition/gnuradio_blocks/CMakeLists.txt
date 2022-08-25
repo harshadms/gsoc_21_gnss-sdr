@@ -71,6 +71,8 @@ target_link_libraries(acquisition_gr_blocks
 )
 
 target_include_directories(acquisition_gr_blocks
+    PUBLIC
+        ${CMAKE_SOURCE_DIR}/src/core/libs
     PRIVATE
         ${CMAKE_SOURCE_DIR}/src/core/receiver
 )

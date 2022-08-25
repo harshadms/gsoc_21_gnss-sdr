@@ -826,30 +826,33 @@ Rtklib_Pvt::Rtklib_Pvt(const ConfigurationInterface* configuration,
         {
             pvt_output_parameters.print_score = configuration->property(role + ".print_score", false);
 
-            PVTConsistencyChecksConf spoofing_detection_parameters = PVTConsistencyChecksConf();
+            SpoofingDetectorConfig spoofing_detection_config = SpoofingDetectorConfig();
 
-            spoofing_detection_parameters.dump_pvt_checks_results = configuration->property("SecurePVT.dump_pvt_checks_results", false);
+            spoofing_detection_config.dump_pvt_checks_results = configuration->property("SecureGNSS.dump_pvt_checks_results", false);
 
-            spoofing_detection_parameters.position_check = configuration->property("SecurePVT.position_check", false);
-            spoofing_detection_parameters.max_jump_distance = configuration->property("SecurePVT.max_jump_distance", 100);
-            spoofing_detection_parameters.geo_fence_radius = configuration->property("SecurePVT.geo_fence_radius", 15);
-            spoofing_detection_parameters.velocity_difference = configuration->property("SecurePVT.velocity_difference", 15);
-            spoofing_detection_parameters.pos_error_threshold = configuration->property("SecurePVT.pos_error_threshold", 10);
-            spoofing_detection_parameters.static_pos_check = configuration->property("SecurePVT.static_pos_check", false);
+            spoofing_detection_config.position_check = configuration->property("SecureGNSS.position_check", false);
+            spoofing_detection_config.max_jump_distance = configuration->property("SecureGNSS.max_jump_distance", 100);
+            spoofing_detection_config.geo_fence_radius = configuration->property("SecureGNSS.geo_fence_radius", 15);
+            spoofing_detection_config.velocity_difference = configuration->property("SecureGNSS.velocity_difference", 15);
+            spoofing_detection_config.pos_error_threshold = configuration->property("SecureGNSS.pos_error_threshold", 10);
+            spoofing_detection_config.static_pos_check = configuration->property("SecureGNSS.static_pos_check", false);
 
-            spoofing_detection_parameters.enable_apt = configuration->property("SecureACQ.enable_apt", true);
+            spoofing_detection_config.enable_apt = configuration->property("SecureGNSS.enable_apt", true);
 
-            spoofing_detection_parameters.use_aux_peak = configuration->property("SecurePVT.use_aux_peak", false);
-            spoofing_detection_parameters.min_altitude = configuration->property("SecurePVT.min_altitude", -10);
-            spoofing_detection_parameters.max_altitude = configuration->property("SecurePVT.max_altitude", 20000);
-            spoofing_detection_parameters.min_ground_speed = configuration->property("SecurePVT.min_ground_speed", 0);
-            spoofing_detection_parameters.max_ground_speed = configuration->property("SecurePVT.max_ground_speed", 200);
+            spoofing_detection_config.use_aux_peak = configuration->property("SecureGNSS.use_aux_peak", false);
+            spoofing_detection_config.min_altitude = configuration->property("SecureGNSS.min_altitude", -10);
+            spoofing_detection_config.max_altitude = configuration->property("SecureGNSS.max_altitude", 20000);
+            spoofing_detection_config.min_ground_speed = configuration->property("SecureGNSS.min_ground_speed", 0);
+            spoofing_detection_config.max_ground_speed = configuration->property("SecureGNSS.max_ground_speed", 200);
 
-            spoofing_detection_parameters.static_lat = configuration->property("SecurePVT.static_lat", 0.0);
-            spoofing_detection_parameters.static_lon = configuration->property("SecurePVT.static_lon", 0.0);
-            spoofing_detection_parameters.static_alt = configuration->property("SecurePVT.static_alt", 0.0);
+            spoofing_detection_config.static_lat = configuration->property("SecureGNSS.static_lat", 0.0);
+            spoofing_detection_config.static_lon = configuration->property("SecureGNSS.static_lon", 0.0);
+            spoofing_detection_config.static_alt = configuration->property("SecureGNSS.static_alt", 0.0);
+            spoofing_detection_config.clk_offset_vector_size = configuration->property("SecureGNSS.clk_offset_vector_size", 1000);
+            spoofing_detection_config.clk_offset_error = configuration->property("SecureGNSS.clk_offset_error", 20);
+            spoofing_detection_config.cno_threshold = configuration->property("SecureGNSS.cno_threshold", 1);
 
-            pvt_output_parameters.security_parameters = spoofing_detection_parameters;
+            pvt_output_parameters.security_parameters = spoofing_detection_config;
         }
 
     // make PVT object
@@ -883,6 +886,10 @@ bool Rtklib_Pvt::get_latest_PVT(double* longitude_deg,
         UTC_time);
 }
 
+bool Rtklib_Pvt::get_spoofer_status(SpooferStatus* spoofer_stats)
+{
+    return pvt_->get_spoofer_status(spoofer_stats);
+}
 
 void Rtklib_Pvt::clear_ephemeris()
 {
@@ -892,6 +899,12 @@ void Rtklib_Pvt::clear_ephemeris()
 int Rtklib_Pvt::switch_peaks()
 {
     return pvt_->switch_peaks();
+}
+
+void Rtklib_Pvt::set_msg_queue(std::shared_ptr<Concurrent_Queue<pmt::pmt_t>> control_queue)
+{
+    DLOG(INFO) << "Setting message queue for spoofing detector object";
+    pvt_->set_msg_queue(control_queue);
 }
 
 
